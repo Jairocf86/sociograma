@@ -1,0 +1,2210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sociograma · Herramienta de Departamento</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Outfit+Mono&family=Fraunces:ital,wght@0,400;0,700;1,400&display=swap');
+
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #21262d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #7d8590;
+  --green: #3fb950;
+  --red: #f85149;
+  --orange: #d29922;
+  --blue: #58a6ff;
+  --purple: #bc8cff;
+  --accent: #58a6ff;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+}
+
+/* ══ PANTALLAS ══ */
+.screen { display: none; min-height: 100vh; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ══ HOME ══ */
+#screen-home {
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 48px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(88,166,255,0.08) 0%, transparent 60%);
+}
+
+.home-logo {
+  text-align: center;
+}
+
+.home-logo h1 {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(2.4rem, 7vw, 4rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.home-logo h1 em { font-style: italic; color: var(--blue); }
+.home-logo p { color: var(--muted); margin-top: 10px; font-size: 0.9rem; font-weight: 400; }
+
+.role-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 580px;
+}
+
+.role-btn {
+  flex: 1;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 22px;
+  cursor: pointer;
+  transition: all 0.22s;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.role-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.role-btn:hover::after { border-color: var(--c, var(--blue)); }
+.role-btn:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(0,0,0,0.4); }
+
+.role-btn .icon { font-size: 1.8rem; margin-bottom: 12px; display: block; }
+.role-btn h2 { font-size: 1rem; font-weight: 700; margin-bottom: 5px; color: var(--text); }
+.role-btn p { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+.role-btn .arrow { position: absolute; right: 18px; bottom: 18px; color: var(--muted); font-size: 1rem; transition: transform 0.2s; }
+.role-btn:hover .arrow { transform: translateX(4px); color: var(--c, var(--blue)); }
+
+/* ══ HEADER ══ */
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.app-header .logo {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.app-header .logo em { font-style: italic; color: var(--blue); }
+.app-header .role-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tag-profe { background: rgba(88,166,255,0.15); color: var(--blue); }
+.tag-alumno { background: rgba(63,185,80,0.15); color: var(--green); }
+
+.btn-back {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 12px;
+  color: var(--muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-back:hover { border-color: var(--text); color: var(--text); }
+
+.header-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.status-dot.closed { background: var(--red); animation: none; }
+
+/* ══ BODY ══ */
+.screen-body {
+  flex: 1;
+  padding: 28px 24px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.screen-body.wide { max-width: 1100px; }
+
+/* ══ CARDS ══ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.card-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 14px; }
+
+/* ══ FORM ELEMENTS ══ */
+.field-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+}
+
+input[type=text], select, textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type=text]:focus, select:focus, textarea:focus { border-color: var(--blue); }
+textarea { resize: vertical; min-height: 60px; }
+
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.col { flex: 1; min-width: 140px; }
+
+/* ══ BUTTONS ══ */
+.btn {
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-blue { background: var(--blue); color: #000; }
+.btn-blue:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.btn-green { background: var(--green); color: #000; }
+.btn-green:hover { filter: brightness(1.1); }
+.btn-red { background: var(--red); color: #fff; }
+.btn-red:hover { filter: brightness(1.1); }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.btn-ghost:hover { border-color: var(--text); color: var(--text); }
+.btn-sm { padding: 6px 13px; font-size: 0.76rem; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+/* ══ CODES GRID ══ */
+.codes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.code-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.code-badge {
+  font-family: 'Outfit', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--blue);
+  background: rgba(88,166,255,0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ══ SESSION CODE ══ */
+.session-box {
+  background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(188,140,255,0.06));
+  border: 1px solid rgba(88,166,255,0.3);
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.session-code-display {
+  font-family: 'Outfit', monospace;
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--blue);
+}
+
+.session-hint { font-size: 0.75rem; color: var(--muted); margin-top: 3px; }
+
+/* ══ PROGRESS ══ */
+.prog-bar-bg {
+  background: var(--surface2);
+  border-radius: 99px;
+  height: 7px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.prog-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  border-radius: 99px;
+  transition: width 0.5s;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.chip {
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--surface2);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.3s;
+}
+
+.chip.done { background: rgba(63,185,80,0.15); color: var(--green); font-weight: 600; }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ══ TABS ══ */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  gap: 0;
+  overflow-x: auto;
+}
+
+.tab {
+  padding: 10px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tab:hover:not(.active) { color: var(--text); }
+
+.tab-panel { display: none; padding-top: 20px; }
+.tab-panel.active { display: block; }
+
+/* ══ SOCIOGRAMA SVG ══ */
+.grafo-wrap {
+  width: 100%;
+  aspect-ratio: 16/9;
+  min-height: 360px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.grafo-wrap svg { width: 100%; height: 100%; }
+
+/* ══ STATS ══ */
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.stat-name { min-width: 100px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-bar-bg { flex: 1; background: var(--surface2); border-radius: 99px; height: 6px; overflow: hidden; }
+.stat-bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s; }
+.stat-val { font-size: 0.72rem; color: var(--muted); min-width: 22px; text-align: right; font-family: monospace; }
+
+/* ══ SOCIAL RISK CARDS ══ */
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.risk-card {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 14px;
+  border-left: 3px solid var(--c, var(--border));
+}
+
+.risk-card .rc-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--c, var(--muted)); margin-bottom: 8px; }
+.risk-card .rc-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 2px; }
+.risk-card .rc-stats { font-size: 0.72rem; color: var(--muted); }
+
+/* ══ JUSTIFICACIONES ══ */
+.just-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.just-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.just-table td { padding: 8px 12px; border-bottom: 1px solid rgba(48,54,61,0.5); vertical-align: top; }
+.just-table tr:hover td { background: var(--surface2); }
+
+/* ══ MATRIZ ══ */
+.mtz { border-collapse: collapse; font-size: 0.65rem; }
+.mtz th, .mtz td { width: 24px; height: 24px; text-align: center; border: 1px solid var(--border); }
+.mtz th { background: var(--surface2); color: var(--muted); font-weight: 600; }
+.mtz td.self { background: rgba(255,255,255,0.03); }
+.mtz td.pos { background: rgba(63,185,80,0.25); color: var(--green); font-weight: 700; }
+.mtz td.neg { background: rgba(248,81,73,0.2); color: var(--red); font-weight: 700; }
+.mtz td.mutual-pos { background: rgba(63,185,80,0.45); color: var(--green); font-weight: 700; }
+
+/* ══ INFORME ══ */
+#informe-output {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  min-height: 200px;
+  color: var(--text);
+}
+
+/* ══ ALUMNO FORM ══ */
+.alu-pregunta {
+  background: linear-gradient(135deg, rgba(88,166,255,0.06), transparent);
+  border: 1px solid rgba(88,166,255,0.2);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 14px;
+}
+
+.alu-pregunta h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 1.05rem;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+.alu-pregunta .bloque-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--blue);
+  margin-bottom: 6px;
+}
+
+.nom-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.nom-num {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--blue);
+  min-width: 20px;
+  font-family: monospace;
+}
+
+.just-input {
+  margin-top: 10px;
+}
+
+/* ══ GRACIAS ══ */
+#screen-gracias {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 16px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(63,185,80,0.07) 0%, transparent 60%);
+}
+
+/* ══ TOOLTIP ══ */
+.tooltip {
+  position: fixed;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.74rem;
+  pointer-events: none;
+  z-index: 9999;
+  display: none;
+  line-height: 1.6;
+  max-width: 220px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+/* ══ TOAST ══ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 20px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  z-index: 9999;
+  transition: transform 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ══ LEGEND ══ */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.leg-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--muted); }
+.leg-dot { width: 9px; height: 9px; border-radius: 50%; }
+
+/* ══ LOADING ══ */
+.spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.filter-row select { max-width: 200px; }
+
+@media (max-width: 600px) {
+  .screen-body { padding: 16px 14px; }
+  .session-code-display { font-size: 1.8rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA HOME
+══════════════════════════════════════════ -->
+<div class="screen active" id="screen-home">
+  <div class="home-logo">
+    <h1>Socio<em>grama</em></h1>
+    <p>Herramienta de análisis sociométrico · Departamento de Orientación</p>
+  </div>
+  <div class="role-grid">
+    <button class="role-btn" style="--c:var(--blue)" onclick="goScreen('screen-profe')">
+      <span class="icon">🎓</span>
+      <h2>Soy Profesor/a</h2>
+      <p>Crea la sesión, gestiona los códigos y analiza los resultados en tiempo real.</p>
+      <span class="arrow">→</span>
+    </button>
+    <button class="role-btn" style="--c:var(--green)" onclick="goScreen('screen-alumno-entrada')">
+      <span class="icon">🙋</span>
+      <h2>Soy Alumno/a</h2>
+      <p>Introduce tu código de sesión y responde las preguntas.</p>
+      <span class="arrow">→</span>
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA PROFESOR — CONFIGURACIÓN
+══════════════════════════════════════════ -->
+<div class="screen" id="screen-profe">
+  <div class="app-header">
+    <button class="btn-back" onclick="goHome()">← Inicio</button>
+    <div class="logo">Socio<em>grama</em></div>
+    <span class="role-tag tag-profe">Profesor/a</span>
+    <div class="header-status" id="profe-status" style="display:none;">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-txt">Encuesta abierta</span>
+    </div>
+  </div>
+  <div class="screen-body">
+
+    <div class="card" id="card-config">
+      <div class="card-title">⚙️ Configuración de la sesión</div>
+      <div class="card-sub">Introduce los códigos del alumnado (ej: AL-001). Se almacenan de forma anónima.</div>
+
+      <div class="row" style="margin-bottom:14px;">
+        <div class="col">
+          <label class="field-label">Número de alumnos</label>
+          <select id="p-num-alumnos" onchange="buildCodesGrid()">
+            <option value="15">15</option><option value="20">20</option>
+            <option value="25" selected>25</option><option value="30">30</option>
+            <option value="35">35</option>
+          </select>
+        </div>
+        <div class="col">
+          <label class="field-label">Prefijo de código</label>
+          <input type="text" id="p-prefijo" value="AL" maxlength="4" placeholder="AL" oninput="buildCodesGrid()">
+        </div>
+        <div class="col" style="display:flex;align-items:flex-end;">
+          <button class="btn btn-ghost btn-sm" onclick="buildCodesGrid()">↺ Regenerar códigos</button>
+        </div>
+      </div>
+
+      <label class="field-label">Códigos del alumnado (edita si quieres personalizarlos)</label>
+      <div class="codes-grid" id="codes-grid"></div>
+
+      <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-blue" onclick="crearSesion()">Crear sesión →</button>
+        <button class="btn btn-ghost btn-sm" onclick="imprimirTabla()">🖨️ Imprimir tabla equivalencias</button>
+      </div>
+    </div>
+
+    <!-- Sesión activa -->
+    <div id="card-sesion-activa" style="display:none;">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">📡 Sesión activa</div>
+        <div class="card-sub">Comparte este código con el alumnado. Cada alumno lo introduce en la pantalla de inicio.</div>
+        <div class="session-box">
+          <div>
+            <div class="session-code-display" id="sesion-code-display">—</div>
+            <div class="session-hint">Los alumnos usan su código personal AL-001, AL-002... para identificarse</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="copiarCodigo()">📋 Copiar código</button>
+            <button class="btn btn-sm" id="btn-toggle-encuesta" onclick="toggleEncuesta()" style="background:var(--red);color:#fff;">🔒 Cerrar encuesta</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">📊 Progreso en tiempo real</div>
+        <div class="card-sub" id="prog-label">0 de 0 alumnos han respondido</div>
+        <div class="prog-bar-bg"><div class="prog-bar" id="prog-bar" style="width:0%"></div></div>
+        <div class="chips" id="chips-container"></div>
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-blue" onclick="verResultados()">Ver resultados →</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetSesion()">🗑 Nueva sesión</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA RESULTADOS
+══════════════════════════════════════════ -->
+<div class="screen" id="screen-resultados">
+  <div class="app-header">
+    <button class="btn-back" onclick="goScreen('screen-profe')">← Panel</button>
+    <div class="logo">Socio<em>grama</em></div>
+    <span class="role-tag tag-profe">Resultados</span>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">⬇ CSV</button>
+    </div>
+  </div>
+  <div class="screen-body wide">
+
+    <div class="tabs" id="res-tabs">
+      <div class="tab active" onclick="switchResTab('sociograma')">Sociograma</div>
+      <div class="tab" onclick="switchResTab('estadisticos')">📊 Estadísticos</div>
+      <div class="tab" onclick="switchResTab('riesgo')">Análisis Social</div>
+      <div class="tab" onclick="switchResTab('grupos')">Grupos y Cohesión</div>
+      <div class="tab" onclick="switchResTab('balance')">Balance Neto</div>
+      <div class="tab" onclick="switchResTab('roles')">Roles de Clase</div>
+      <div class="tab" onclick="switchResTab('justificaciones')">Justificaciones</div>
+      <div class="tab" onclick="switchResTab('matriz')">Matriz</div>
+      <div class="tab" onclick="switchResTab('informe')">Informe IA</div>
+    </div>
+
+    <!-- TAB ESTADÍSTICOS -->
+    <div class="tab-panel" id="tp-estadisticos">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">🏷️ Distribución por categoría sociométrica</div>
+        <div class="card-sub">Clasificación del alumnado según su posición en la red de relaciones del grupo.</div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center;">
+          <div style="width:240px;height:240px;position:relative;flex-shrink:0;">
+            <canvas id="chart-categorias"></canvas>
+          </div>
+          <div id="cat-leyenda" style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">📊 Elecciones positivas vs negativas recibidas</div>
+        <div class="card-sub">Total acumulado de todas las preguntas sociométricas por alumno.</div>
+        <div style="position:relative;height:300px;"><canvas id="chart-barras"></canvas></div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">🔵 Popularidad vs índice neto</div>
+        <div class="card-sub">Eje X: total de elecciones recibidas · Eje Y: índice neto (positivas − negativas). Cada punto representa un alumno.</div>
+        <div style="position:relative;height:300px;"><canvas id="chart-dispersion"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 Tabla de indicadores por alumno</div>
+        <div class="card-sub">Ordenada por índice neto descendente.</div>
+        <div style="overflow:auto;">
+          <table class="just-table">
+            <thead><tr>
+              <th>#</th><th>Alumno</th><th style="color:var(--green);">Pos. rec.</th>
+              <th style="color:var(--red);">Neg. rec.</th><th>Neto</th>
+              <th style="color:var(--blue);">Pos. emit.</th><th style="color:var(--orange);">Neg. emit.</th><th>Categoría</th>
+            </tr></thead>
+            <tbody id="tabla-resumen-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB SOCIOGRAMA -->
+    <div class="tab-panel active" id="tp-sociograma">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <label class="field-label" style="margin:0;">Pregunta:</label>
+        <select id="socio-pregunta-sel" style="max-width:320px;" onchange="renderGrafo()">
+          <option value="0">✅ Tiempo libre positivo</option>
+          <option value="1">❌ Tiempo libre negativo</option>
+          <option value="2">👥 Trabajo en grupo positivo</option>
+          <option value="3">🚫 Trabajo en grupo negativo</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="simNodes=[];renderGrafo()">↺ Redistribuir</button>
+        <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:5px;">
+          <input type="checkbox" id="chk-recip" onchange="renderGrafo()"> Solo recíprocas
+        </label>
+      </div>
+      <div class="legend" style="margin-bottom:10px;">
+        <div class="leg-item"><div class="leg-dot" style="background:var(--blue);"></div>Elige</div>
+        <div class="leg-item"><div class="leg-dot" style="background:var(--green);"></div>Recíproca</div>
+        <div class="leg-item"><div class="leg-dot" style="background:var(--red);opacity:0.7;"></div>Rechazo</div>
+        <div class="leg-item"><div class="leg-dot" style="background:transparent;border:2px solid var(--orange);width:11px;height:11px;"></div>Más elegido</div>
+      </div>
+      <div class="grafo-wrap"><svg id="grafo"></svg></div>
+    </div>
+
+    <!-- TAB ANÁLISIS SOCIAL -->
+    <div class="tab-panel" id="tp-riesgo">
+      <div class="risk-grid" id="risk-grid"></div>
+      <div style="margin-top:20px;">
+        <div class="card-title" style="margin-bottom:12px;">📈 Índice sociométrico por alumno</div>
+        <div id="socio-index-chart"></div>
+      </div>
+    </div>
+
+    <!-- TAB GRUPOS Y COHESIÓN -->
+    <div class="tab-panel" id="tp-grupos">
+      <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label class="field-label" style="margin:0;">Basado en:</label>
+        <select id="grupos-preg-sel" style="max-width:280px;" onchange="renderGrupos()">
+          <option value="0">✅ Tiempo libre positivo</option>
+          <option value="2">👥 Trabajo en grupo positivo</option>
+        </select>
+      </div>
+      <div id="grupos-container"></div>
+    </div>
+
+    <!-- TAB BALANCE NETO -->
+    <div class="tab-panel" id="tp-balance">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">⚖️ Balance neto por alumno</div>
+        <div class="card-sub">Elecciones positivas recibidas − elecciones negativas recibidas = balance neto. Ordenado de mayor a menor.</div>
+      </div>
+      <div id="balance-container"></div>
+    </div>
+
+    <!-- TAB ROLES -->
+    <div class="tab-panel" id="tp-roles">
+      <div id="roles-charts"></div>
+    </div>
+
+    <!-- TAB JUSTIFICACIONES -->
+    <div class="tab-panel" id="tp-justificaciones">
+      <div class="filter-row">
+        <select id="just-fil-alumno" onchange="renderJust()">
+          <option value="">Todos los alumnos</option>
+        </select>
+        <select id="just-fil-preg" onchange="renderJust()">
+          <option value="">Todas las preguntas</option>
+          <option value="0">✅ Tiempo libre positivo</option>
+          <option value="1">❌ Tiempo libre negativo</option>
+          <option value="2">👥 Trabajo en grupo positivo</option>
+          <option value="3">🚫 Trabajo en grupo negativo</option>
+        </select>
+      </div>
+      <div style="overflow:auto;">
+        <table class="just-table" id="just-table">
+          <thead><tr><th>Alumno</th><th>Pregunta</th><th>Elige a</th><th>Justificación</th></tr></thead>
+          <tbody id="just-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB MATRIZ -->
+    <div class="tab-panel" id="tp-matriz">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        <select id="mtz-preg-sel" style="max-width:280px;" onchange="renderMatriz()">
+          <option value="0">✅ Tiempo libre positivo</option>
+          <option value="1">❌ Tiempo libre negativo</option>
+          <option value="2">👥 Trabajo en grupo positivo</option>
+          <option value="3">🚫 Trabajo en grupo negativo</option>
+        </select>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:rgba(63,185,80,0.4);"></div>Recíproca</div>
+          <div class="leg-item"><div class="leg-dot" style="background:rgba(63,185,80,0.2);"></div>Elige</div>
+          <div class="leg-item"><div class="leg-dot" style="background:rgba(248,81,73,0.2);"></div>Rechazo</div>
+        </div>
+      </div>
+      <div style="overflow:auto;" id="mtz-container"></div>
+    </div>
+
+    <!-- TAB INFORME IA -->
+    <div class="tab-panel" id="tp-informe">
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-title">🤖 Informe narrativo generado con IA</div>
+        <div class="card-sub">La IA analiza todos los datos y genera un informe pedagógico profesional en español, destacando los 3 alumnos con mayor aceptación y los 3 con mayor riesgo/rechazo, con justificaciones de sus compañeros.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-blue" id="btn-generar-informe" onclick="generarInforme()">✨ Generar informe</button>
+          <button class="btn btn-ghost btn-sm" id="btn-pdf" onclick="descargarPDF()" style="display:none;">📄 Descargar PDF</button>
+          <button class="btn btn-ghost btn-sm" id="btn-docx" onclick="descargarDOCX()" style="display:none;">📝 Descargar Word</button>
+        </div>
+      </div>
+      <div id="informe-output" style="display:none;"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA ALUMNO — ENTRADA
+══════════════════════════════════════════ -->
+<div class="screen" id="screen-alumno-entrada">
+  <div class="app-header">
+    <button class="btn-back" onclick="goHome()">← Inicio</button>
+    <div class="logo">Socio<em>grama</em></div>
+    <span class="role-tag tag-alumno">Alumno/a</span>
+  </div>
+  <div class="screen-body" style="justify-content:center;align-items:center;flex:1;">
+    <div class="card" style="max-width:420px;width:100%;">
+      <div class="card-title">Introduce los datos de tu sesión</div>
+      <div class="card-sub">Tu profesor/a te ha dado un código de sesión y tu código personal.</div>
+
+      <label class="field-label">Código de sesión</label>
+      <input type="text" id="a-cod-sesion" placeholder="Ej: XK7-M3Q" maxlength="7"
+        style="text-transform:uppercase;font-family:monospace;font-size:1.3rem;letter-spacing:0.14em;text-align:center;margin-bottom:12px;"
+        oninput="this.value=this.value.toUpperCase()">
+
+      <label class="field-label">Tu código personal</label>
+      <input type="text" id="a-cod-personal" placeholder="Ej: AL-001"
+        style="text-transform:uppercase;font-family:monospace;font-size:1.1rem;letter-spacing:0.1em;text-align:center;margin-bottom:14px;"
+        oninput="this.value=this.value.toUpperCase()">
+
+      <button class="btn btn-green" style="width:100%;padding:11px;" onclick="unirseAlumno()">Entrar →</button>
+      <div id="a-error" style="color:var(--red);font-size:0.78rem;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA ALUMNO — FORMULARIO
+══════════════════════════════════════════ -->
+<div class="screen" id="screen-alumno-form">
+  <div class="app-header">
+    <div class="logo">Socio<em>grama</em></div>
+    <span class="role-tag tag-alumno">Alumno/a</span>
+    <span id="a-cod-display" style="margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--muted);"></span>
+  </div>
+  <div class="screen-body">
+    <div id="alu-form-content"></div>
+    <button class="btn btn-green" style="width:100%;padding:13px;font-size:1rem;" onclick="enviarRespuesta()" id="btn-enviar">
+      ✓ Enviar mis respuestas
+    </button>
+    <div id="a-send-error" style="color:var(--red);font-size:0.78rem;display:none;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA GRACIAS
+══════════════════════════════════════════ -->
+<div class="screen" id="screen-gracias">
+  <div style="font-size:4rem;">✅</div>
+  <h2 style="font-family:'Fraunces',serif;font-size:2rem;">¡Gracias!</h2>
+  <p style="color:var(--muted);max-width:300px;text-align:center;">Tus respuestas han sido enviadas correctamente. Ya puedes cerrar esta pantalla.</p>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TABLA IMPRIMIBLE (oculta)
+══════════════════════════════════════════ -->
+<div id="print-tabla" style="display:none;">
+  <style media="print">
+    body > *:not(#print-tabla) { display: none !important; }
+    #print-tabla { display: block !important; }
+    table { border-collapse: collapse; width: 100%; font-family: sans-serif; }
+    th, td { border: 1px solid #ccc; padding: 6px 10px; font-size: 12px; }
+    th { background: #f0f0f0; }
+    h2 { font-family: sans-serif; margin-bottom: 10px; }
+  </style>
+  <h2>Tabla de equivalencias — Sociograma</h2>
+  <p style="font-size:12px;font-family:sans-serif;margin-bottom:8px;">Fecha: <span id="print-fecha"></span> · Sesión: <span id="print-sesion"></span></p>
+  <table>
+    <thead><tr><th>Código</th><th>Nombre del alumno/a</th><th>Firma</th></tr></thead>
+    <tbody id="print-tbody"></tbody>
+  </table>
+  <p style="font-size:10px;font-family:sans-serif;margin-top:12px;color:#666;">⚠️ Documento confidencial. Conservar en el expediente del alumno/a. No almacenar digitalmente junto con la base de datos.</p>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// FIREBASE
+// ══════════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyD0GYaAsgHiZqGEJegwMYVP-mzIagxf7Qo",
+  authDomain: "sociograma-clase.firebaseapp.com",
+  projectId: "sociograma-clase",
+  storageBucket: "sociograma-clase.firebasestorage.app",
+  messagingSenderId: "646986737670",
+  appId: "1:646986737670:web:af8cfacca8b229f5197b87"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ══════════════════════════════════════════════════════════════════
+// PREGUNTAS
+// ══════════════════════════════════════════════════════════════════
+const PREGUNTAS_SOCIO = [
+  { id: 'tl_pos', texto: '¿Con quién te gustaría compartir tu tiempo libre?', tipo: 'pos', justificacion: true },
+  { id: 'tl_neg', texto: '¿Con quién NO te gustaría compartir tu tiempo libre?', tipo: 'neg', justificacion: true },
+  { id: 'tg_pos', texto: '¿Con quién te gustaría trabajar en grupo?', tipo: 'pos', justificacion: true },
+  { id: 'tg_neg', texto: '¿Con quién NO te gustaría trabajar en grupo?', tipo: 'neg', justificacion: true },
+];
+
+const PREGUNTAS_ROLES = [
+  { id: 'r_amigos',    texto: '¿Quién tiene muchos amigos en clase?' },
+  { id: 'r_profes',    texto: '¿Quién se lleva bien con los profesores?' },
+  { id: 'r_simpatico', texto: '¿Quién es simpático/a con los compañeros?' },
+  { id: 'r_escucha',   texto: '¿Quién sabe escuchar a los demás?' },
+  { id: 'r_atencion',  texto: '¿Quién llama la atención frecuentemente?' },
+  { id: 'r_conflicto', texto: '¿Quién tiene capacidad para resolver conflictos?' },
+];
+
+const NUM_ELEC = 3;
+
+// ══════════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ══════════════════════════════════════════════════════════════════
+let sesion = null; // { id, codigos[], abierta }
+let respuestas = {}; // { codigo: { tl_pos:[...], tl_neg:[...], ... } }
+let simNodes = [];
+let pollUnsub = null;
+let informeTexto = '';
+
+// ══════════════════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ══════════════════════════════════════════════════════════════════
+function goHome() {
+  if (pollUnsub) { pollUnsub(); pollUnsub = null; }
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-home').classList.add('active');
+}
+
+function goScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CÓDIGOS GRID
+// ══════════════════════════════════════════════════════════════════
+function buildCodesGrid() {
+  const n = parseInt(document.getElementById('p-num-alumnos').value);
+  const pref = document.getElementById('p-prefijo').value.trim().toUpperCase() || 'AL';
+  const grid = document.getElementById('codes-grid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= n; i++) {
+    const code = `${pref}-${String(i).padStart(3,'0')}`;
+    const div = document.createElement('div');
+    div.className = 'code-item';
+    div.innerHTML = `<span class="code-badge" id="cb-${i}">${code}</span>
+      <input type="text" style="flex:1;font-size:0.75rem;padding:3px 6px;" placeholder="Nombre (opcional)" id="cn-${i}">`;
+    grid.appendChild(div);
+  }
+}
+
+buildCodesGrid();
+
+function getCodigos() {
+  const n = parseInt(document.getElementById('p-num-alumnos').value);
+  const arr = [];
+  for (let i = 1; i <= n; i++) {
+    arr.push(document.getElementById('cb-'+i).textContent.trim());
+  }
+  return arr;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CREAR SESIÓN
+// ══════════════════════════════════════════════════════════════════
+function genId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = '';
+  for (let i=0;i<3;i++) id += chars[Math.floor(Math.random()*chars.length)];
+  id += '-';
+  for (let i=0;i<3;i++) id += chars[Math.floor(Math.random()*chars.length)];
+  return id;
+}
+
+async function crearSesion() {
+  const codigos = getCodigos();
+  const sesionId = genId();
+  sesion = { id: sesionId, codigos, abierta: true };
+
+  await db.collection('sesiones').doc(sesionId).set({
+    codigos,
+    abierta: true,
+    creado: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  document.getElementById('sesion-code-display').textContent = sesionId;
+  document.getElementById('card-config').style.display = 'none';
+  document.getElementById('card-sesion-activa').style.display = 'block';
+  document.getElementById('profe-status').style.display = 'flex';
+  updateStatusUI(true);
+  startListening();
+  showToast('Sesión creada: ' + sesionId);
+}
+
+function updateStatusUI(abierta) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-txt');
+  const btn = document.getElementById('btn-toggle-encuesta');
+  dot.className = 'status-dot' + (abierta ? '' : ' closed');
+  txt.textContent = abierta ? 'Encuesta abierta' : 'Encuesta cerrada';
+  btn.textContent = abierta ? '🔒 Cerrar encuesta' : '🔓 Abrir encuesta';
+  btn.style.background = abierta ? 'var(--red)' : 'var(--green)';
+  btn.style.color = '#fff';
+}
+
+async function toggleEncuesta() {
+  if (!sesion) return;
+  sesion.abierta = !sesion.abierta;
+  await db.collection('sesiones').doc(sesion.id).update({ abierta: sesion.abierta });
+  updateStatusUI(sesion.abierta);
+  showToast(sesion.abierta ? 'Encuesta abierta' : 'Encuesta cerrada');
+}
+
+function copiarCodigo() {
+  if (!sesion) return;
+  navigator.clipboard.writeText(sesion.id).then(() => showToast('Código copiado: ' + sesion.id));
+}
+
+async function resetSesion() {
+  if (!confirm('¿Seguro que quieres borrar la sesión actual?')) return;
+  if (sesion) await db.collection('sesiones').doc(sesion.id).delete();
+  if (pollUnsub) { pollUnsub(); pollUnsub = null; }
+  sesion = null; respuestas = {};
+  document.getElementById('card-config').style.display = 'block';
+  document.getElementById('card-sesion-activa').style.display = 'none';
+  document.getElementById('profe-status').style.display = 'none';
+  buildCodesGrid();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ESCUCHAR RESPUESTAS EN TIEMPO REAL
+// ══════════════════════════════════════════════════════════════════
+function startListening() {
+  if (pollUnsub) pollUnsub();
+  pollUnsub = db.collection('sesiones').doc(sesion.id)
+    .collection('respuestas')
+    .onSnapshot(snap => {
+      respuestas = {};
+      snap.forEach(doc => { respuestas[doc.id] = doc.data(); });
+      updateProgreso();
+    });
+}
+
+function updateProgreso() {
+  if (!sesion) return;
+  const total = sesion.codigos.length;
+  const respondidos = Object.keys(respuestas);
+  const n = respondidos.length;
+  document.getElementById('prog-label').textContent = `${n} de ${total} alumnos han respondido`;
+  document.getElementById('prog-bar').style.width = (n/total*100) + '%';
+
+  const cont = document.getElementById('chips-container');
+  cont.innerHTML = '';
+  sesion.codigos.forEach(cod => {
+    const done = !!respuestas[cod];
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (done ? ' done' : '');
+    chip.innerHTML = `<span class="dot"></span>${cod}`;
+    cont.appendChild(chip);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// VER RESULTADOS
+// ══════════════════════════════════════════════════════════════════
+function verResultados() {
+  simNodes = [];
+  goScreen('screen-resultados');
+  populateJustFilters();
+  setTimeout(() => renderGrafo(), 60);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SOCIOGRAMA
+// ══════════════════════════════════════════════════════════════════
+function getPregIdx() { return parseInt(document.getElementById('socio-pregunta-sel').value); }
+
+function getEleccionesPregunta(pregIdx) {
+  if (!sesion) return [];
+  const pregId = PREGUNTAS_SOCIO[pregIdx].id;
+  const codigos = sesion.codigos;
+  const n = codigos.length;
+  const arr = Array.from({length:n}, ()=>[]);
+  codigos.forEach((cod,i) => {
+    const r = respuestas[cod];
+    if (!r || !r[pregId]) return;
+    (r[pregId].elecciones || []).forEach(j => { if(j>=0&&j<n) arr[i].push(j); });
+  });
+  return arr;
+}
+
+function getRecibidas(arr) {
+  const r = Array(arr.length).fill(0);
+  arr.forEach(elecs => elecs.forEach(j => { if(j>=0&&j<r.length) r[j]++; }));
+  return r;
+}
+
+function renderGrafo() {
+  const svg = document.getElementById('grafo');
+  if (!svg || !sesion) return;
+  const W = svg.clientWidth||700, H = svg.clientHeight||400;
+  svg.innerHTML = '';
+  const pregIdx = getPregIdx();
+  const esNeg = PREGUNTAS_SOCIO[pregIdx].tipo === 'neg';
+  const arr = getEleccionesPregunta(pregIdx);
+  const n = arr.length;
+  if (!n) return;
+  const recibidas = getRecibidas(arr);
+  const maxR = Math.max(...recibidas, 1);
+  const soloRecip = document.getElementById('chk-recip')?.checked;
+
+  if (!simNodes.length || simNodes.length !== n) {
+    simNodes = [];
+    for (let i=0;i<n;i++){
+      const a=(2*Math.PI*i/n)-Math.PI/2;
+      const r=Math.min(W,H)*0.36+(Math.random()-0.5)*28;
+      simNodes.push({x:W/2+r*Math.cos(a), y:H/2+r*Math.sin(a)});
+    }
+  }
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = t => document.createElementNS(ns,t);
+  const defs = el('defs');
+
+  const mkMark = (id,color) => {
+    const m=el('marker'); m.setAttribute('id',id);
+    m.setAttribute('markerWidth','8');m.setAttribute('markerHeight','8');
+    m.setAttribute('refX','26');m.setAttribute('refY','3');m.setAttribute('orient','auto');
+    const p=el('path');p.setAttribute('d','M0,0 L0,6 L8,3 z');p.setAttribute('fill',color);
+    m.appendChild(p);return m;
+  };
+  defs.appendChild(mkMark('arr-pos','#58a6ff'));
+  defs.appendChild(mkMark('arr-neg','#f85149'));
+  defs.appendChild(mkMark('arr-recip','#3fb950'));
+  svg.appendChild(defs);
+
+  arr.forEach((elecs,i) => elecs.forEach(j => {
+    const recip = arr[j]&&arr[j].includes(i);
+    if (soloRecip&&!recip) return;
+    const x1=simNodes[i].x,y1=simNodes[i].y,x2=simNodes[j].x,y2=simNodes[j].y;
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1;
+    const off=recip?7:0,ox=-dy/len*off,oy=dx/len*off;
+    const color = recip?'#3fb950':esNeg?'#f85149':'#58a6ff';
+    const ln=el('line');
+    ln.setAttribute('x1',x1+ox);ln.setAttribute('y1',y1+oy);
+    ln.setAttribute('x2',x2+ox);ln.setAttribute('y2',y2+oy);
+    ln.setAttribute('stroke',color);ln.setAttribute('stroke-width',recip?2:1.2);
+    ln.setAttribute('stroke-opacity',recip?0.85:0.5);
+    ln.setAttribute('marker-end',`url(#arr-${recip?'recip':esNeg?'neg':'pos'})`);
+    svg.appendChild(ln);
+  }));
+
+  arr.forEach((_,i) => {
+    const {x,y}=simNodes[i];
+    const r=15+recibidas[i]*3;
+    const star=recibidas[i]===maxR&&maxR>1;
+    const g=el('g');g.style.cursor='grab';
+    const c=el('circle');
+    c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',r);
+    c.setAttribute('fill','#161b22');
+    c.setAttribute('stroke',star?'#d29922':'#30363d');
+    c.setAttribute('stroke-width',star?2.5:1.5);
+    g.appendChild(c);
+    const t=el('text');
+    t.setAttribute('x',x);t.setAttribute('y',y+1);
+    t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','middle');
+    t.setAttribute('fill','#e6edf3');t.setAttribute('font-size','8.5');
+    t.setAttribute('font-family','Outfit,sans-serif');t.setAttribute('font-weight','600');
+    const cod=sesion.codigos[i]||'?';
+    t.textContent=cod.length>7?cod.substring(0,6)+'…':cod;
+    g.appendChild(t);
+    if(recibidas[i]>0){
+      const bcirc=el('circle');
+      bcirc.setAttribute('cx',x+r-2);bcirc.setAttribute('cy',y-r+2);bcirc.setAttribute('r',7);
+      bcirc.setAttribute('fill',esNeg?'#f85149':'#3fb950');g.appendChild(bcirc);
+      const bt=el('text');
+      bt.setAttribute('x',x+r-2);bt.setAttribute('y',y-r+3);
+      bt.setAttribute('text-anchor','middle');bt.setAttribute('dominant-baseline','middle');
+      bt.setAttribute('fill','#000');bt.setAttribute('font-size','7');bt.setAttribute('font-weight','700');
+      bt.textContent=recibidas[i];g.appendChild(bt);
+    }
+    g.addEventListener('mouseenter',ev=>showTip(ev,i,recibidas,arr));
+    g.addEventListener('mousemove',moveTip);
+    g.addEventListener('mouseleave',hideTip);
+    makeDrag(g,i,svg,renderGrafo);
+    svg.appendChild(g);
+  });
+}
+
+function makeDrag(g,i,svg,cb){
+  let drag=false,ox,oy;
+  g.addEventListener('mousedown',e=>{drag=true;const r=svg.getBoundingClientRect();ox=e.clientX-r.left-simNodes[i].x;oy=e.clientY-r.top-simNodes[i].y;e.preventDefault();});
+  window.addEventListener('mousemove',e=>{if(!drag)return;const r=svg.getBoundingClientRect();simNodes[i].x=e.clientX-r.left-ox;simNodes[i].y=e.clientY-r.top-oy;cb();});
+  window.addEventListener('mouseup',()=>drag=false);
+}
+
+const tipEl = document.getElementById('tooltip');
+function showTip(ev,i,recibidas,arr){
+  const cod=sesion.codigos[i];
+  const emite=(arr[i]||[]).length;
+  const recip=(arr[i]||[]).filter(j=>arr[j]&&arr[j].includes(i)).length;
+  tipEl.innerHTML=`<strong>${cod}</strong><br>Recibe: ${recibidas[i]} · Emite: ${emite}<br>Recíprocas: ${recip}`;
+  tipEl.style.display='block';moveTip(ev);
+}
+function moveTip(ev){tipEl.style.left=(ev.clientX+14)+'px';tipEl.style.top=(ev.clientY+14)+'px';}
+function hideTip(){tipEl.style.display='none';}
+
+// ══════════════════════════════════════════════════════════════════
+// ANÁLISIS SOCIAL
+// ══════════════════════════════════════════════════════════════════
+function calcIndices() {
+  if (!sesion) return [];
+  const codigos = sesion.codigos;
+  return codigos.map((cod,i) => {
+    let pos=0,neg=0;
+    PREGUNTAS_SOCIO.forEach((p,pi) => {
+      const arr = getEleccionesPregunta(pi);
+      const r = getRecibidas(arr);
+      if (p.tipo==='pos') pos+=r[i];
+      else neg+=r[i];
+    });
+    return { cod, i, pos, neg, neto: pos-neg };
+  });
+}
+
+function renderAnalisisSocial() {
+  if (!sesion) return;
+  const indices = calcIndices();
+  const n = indices.length;
+  const maxPos = Math.max(...indices.map(x=>x.pos),1);
+  const maxNeg = Math.max(...indices.map(x=>x.neg),1);
+
+  // Clasificación
+  const sorted_pos = [...indices].sort((a,b)=>b.pos-a.pos);
+  const sorted_neg = [...indices].sort((a,b)=>b.neg-a.neg);
+  const sorted_neto = [...indices].sort((a,b)=>a.neto-b.neto);
+
+  const grid = document.getElementById('risk-grid');
+  grid.innerHTML = '';
+
+  const mkCard = (label, color, items) => {
+    const card = document.createElement('div');
+    card.className = 'risk-card';
+    card.style.setProperty('--c', color);
+    card.innerHTML = `<div class="rc-label">${label}</div>` +
+      items.slice(0,3).map(x=>`<div class="rc-name">${x.cod}</div><div class="rc-stats">+${x.pos} positivas · −${x.neg} negativas · Neto: ${x.neto>0?'+':''}${x.neto}</div>`).join('<hr style="border-color:var(--border);margin:6px 0;">');
+    grid.appendChild(card);
+  };
+
+  mkCard('🟢 Mayor aceptación', 'var(--green)', sorted_pos);
+  mkCard('🔴 Mayor rechazo', 'var(--red)', sorted_neg);
+  mkCard('⚫ Riesgo de exclusión', 'var(--orange)', sorted_neto);
+
+  // Índice chart
+  const cont = document.getElementById('socio-index-chart');
+  cont.innerHTML = '';
+  const maxAbs = Math.max(...indices.map(x=>Math.abs(x.neto)),1);
+  indices.forEach(x => {
+    const row = document.createElement('div');
+    row.className = 'stat-row';
+    const pct = Math.abs(x.neto)/maxAbs*100;
+    const color = x.neto>=0?'var(--green)':'var(--red)';
+    row.innerHTML = `<span class="stat-name">${x.cod}</span>
+      <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+      <span class="stat-val" style="color:${color};">${x.neto>0?'+':''}${x.neto}</span>`;
+    cont.appendChild(row);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ROLES
+// ══════════════════════════════════════════════════════════════════
+function renderRoles() {
+  if (!sesion) return;
+  const codigos = sesion.codigos;
+  const cont = document.getElementById('roles-charts');
+  cont.innerHTML = '';
+  PREGUNTAS_ROLES.forEach(p => {
+    const recibidas = Array(codigos.length).fill(0);
+    codigos.forEach((cod,i) => {
+      const r = respuestas[cod];
+      if (!r || !r[p.id]) return;
+      (r[p.id] || []).forEach(j => { if(j>=0&&j<codigos.length) recibidas[j]++; });
+    });
+    const maxR = Math.max(...recibidas,1);
+    const sorted = codigos.map((c,i)=>({c,v:recibidas[i]})).sort((a,b)=>b.v-a.v);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.marginBottom = '14px';
+    card.innerHTML = `<div class="card-title" style="margin-bottom:10px;">${p.texto}</div>` +
+      sorted.slice(0,10).map(x=>`
+        <div class="stat-row">
+          <span class="stat-name">${x.c}</span>
+          <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${(x.v/maxR)*100}%;background:var(--purple);"></div></div>
+          <span class="stat-val">${x.v}</span>
+        </div>`).join('');
+    cont.appendChild(card);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// JUSTIFICACIONES
+// ══════════════════════════════════════════════════════════════════
+function populateJustFilters() {
+  if (!sesion) return;
+  const sel = document.getElementById('just-fil-alumno');
+  sel.innerHTML = '<option value="">Todos los alumnos</option>';
+  sesion.codigos.forEach(cod => sel.innerHTML += `<option value="${cod}">${cod}</option>`);
+}
+
+function renderJust() {
+  if (!sesion) return;
+  const filAlumno = document.getElementById('just-fil-alumno').value;
+  const filPreg = document.getElementById('just-fil-preg').value;
+  const tbody = document.getElementById('just-body');
+  tbody.innerHTML = '';
+
+  sesion.codigos.forEach((cod,i) => {
+    const r = respuestas[cod];
+    if (!r) return;
+    if (filAlumno && cod !== filAlumno) return;
+
+    PREGUNTAS_SOCIO.forEach((p,pi) => {
+      if (filPreg !== '' && pi !== parseInt(filPreg)) return;
+      const data = r[p.id];
+      if (!data) return;
+      const elecs = data.elecciones || [];
+      const justs = data.justificaciones || [];
+      elecs.forEach((j, ei) => {
+        const just = (justs[ei] || '').trim();
+        if (!just) return;
+        const elegido = sesion.codigos[j] || j;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><strong>${cod}</strong></td><td style="color:var(--muted);font-size:0.75rem;">${p.texto.substring(0,40)}…</td><td><strong>${elegido}</strong></td><td>${just}</td>`;
+        tbody.appendChild(tr);
+      });
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MATRIZ
+// ══════════════════════════════════════════════════════════════════
+function renderMatriz() {
+  if (!sesion) return;
+  const pregIdx = parseInt(document.getElementById('mtz-preg-sel').value);
+  const esNeg = PREGUNTAS_SOCIO[pregIdx].tipo === 'neg';
+  const arr = getEleccionesPregunta(pregIdx);
+  const n = arr.length;
+  const codigos = sesion.codigos;
+  const recibidas = getRecibidas(arr);
+
+  let html = '<table class="mtz"><thead><tr><th></th>';
+  for (let j=0;j<n;j++) html += `<th title="${codigos[j]}">${j+1}</th>`;
+  html += `<th style="color:${esNeg?'var(--red)':'var(--green)'}">∑</th></tr></thead><tbody>`;
+
+  for (let i=0;i<n;i++){
+    html += `<tr><th title="${codigos[i]}">${i+1}</th>`;
+    for (let j=0;j<n;j++){
+      if(i===j){html+='<td class="self">·</td>';continue;}
+      const eli=(arr[i]||[]).includes(j), elj=(arr[j]||[]).includes(i);
+      if(eli&&elj&&!esNeg) html+='<td class="mutual-pos" title="Recíproca">✓</td>';
+      else if(eli&&esNeg) html+='<td class="neg">✗</td>';
+      else if(eli) html+='<td class="pos">✓</td>';
+      else html+='<td></td>';
+    }
+    html+=`<td style="font-weight:700;font-family:monospace;">${(arr[i]||[]).length}</td></tr>`;
+  }
+  html+='<tr><th>∑</th>';
+  for(let j=0;j<n;j++) html+=`<td style="font-weight:700;font-family:monospace;color:${esNeg?'var(--red)':'var(--green)'};">${recibidas[j]}</td>`;
+  html+='<td></td></tr></tbody></table>';
+  document.getElementById('mtz-container').innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INFORME IA
+// ══════════════════════════════════════════════════════════════════
+async function generarInforme() {
+  if (!sesion) return;
+  const btn = document.getElementById('btn-generar-informe');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Analizando datos...';
+  const output = document.getElementById('informe-output');
+  output.style.display = 'block';
+  output.innerHTML = '<span style="color:var(--muted);">Generando informe...</span>';
+
+  const codigos = sesion.codigos;
+  const n = codigos.length;
+  const totalRespondidos = Object.keys(respuestas).length;
+
+  // Calcular estadísticos completos
+  const posRec = new Array(n).fill(0);
+  const negRec = new Array(n).fill(0);
+  const posEm = new Array(n).fill(0);
+  const negEm = new Array(n).fill(0);
+
+  PREGUNTAS_SOCIO.forEach((p, pi) => {
+    const arr = getEleccionesPregunta(pi);
+    arr.forEach((elecs, i) => {
+      if (p.tipo === 'pos') posEm[i] += elecs.length;
+      else negEm[i] += elecs.length;
+      elecs.forEach(j => { if (p.tipo==='pos') posRec[j]++; else negRec[j]++; });
+    });
+  });
+
+  const netos = codigos.map((_, i) => posRec[i] - negRec[i]);
+  const cats = codigos.map((_, i) => categorizarAlumno(netos[i], posRec[i], negRec[i], n));
+  const catCount = {};
+  cats.forEach(c => { catCount[c.label] = (catCount[c.label]||0)+1; });
+
+  const sorted = codigos.map((cod,i)=>({cod,i,posRec:posRec[i],negRec:negRec[i],neto:netos[i],cat:cats[i].label}))
+    .sort((a,b)=>b.neto-a.neto);
+  const top3pos = sorted.slice(0,3);
+  const top3neg = [...sorted].sort((a,b)=>b.negRec-a.negRec).slice(0,3);
+  const enRiesgo = sorted.filter(x=>x.cat==='En riesgo'||x.cat==='Rechazado/a'||x.cat==='Aislado/a').slice(0,3);
+
+  // Justificaciones por código
+  const justPorCodigo = {};
+  codigos.forEach(cod => {
+    const r = respuestas[cod];
+    if (!r) return;
+    PREGUNTAS_SOCIO.forEach(p => {
+      const data = r[p.id];
+      if (!data) return;
+      (data.elecciones||[]).forEach((j,ei) => {
+        const elegido = codigos[j];
+        if (!elegido) return;
+        if (!justPorCodigo[elegido]) justPorCodigo[elegido] = [];
+        const just = ((data.justificaciones||[])[ei]||'').trim();
+        if (just) justPorCodigo[elegido].push({ tipo: p.tipo, texto: just });
+      });
+    });
+  });
+
+  // Cohesión general
+  const arrPos0 = getEleccionesPregunta(0);
+  let totalRecip=0;
+  arrPos0.forEach((elecs,i)=>elecs.forEach(j=>{if((arrPos0[j]||[]).includes(i))totalRecip++;}));
+  totalRecip=totalRecip/2;
+  const densidad = Math.round((arrPos0.reduce((s,e)=>s+e.length,0)/(n*(n-1)))*100);
+
+  const prompt = `Eres un orientador/a escolar experto/a en análisis sociométrico. Genera un INFORME SOCIOMÉTRICO PROFESIONAL en español, mayoritariamente descriptivo, basado en datos reales de una encuesta realizada a ${n} alumnos (respondieron ${totalRespondidos}).
+
+ESTADÍSTICOS DE LA CLASE:
+- Total alumnos: ${n} | Respondieron: ${totalRespondidos} (${Math.round(totalRespondidos/n*100)}%)
+- Elecciones recíprocas (tiempo libre): ${totalRecip}
+- Densidad de la red: ${densidad}%
+- Distribución por categorías: ${Object.entries(catCount).map(([k,v])=>`${k}: ${v}`).join(', ')}
+
+TOP 3 MAYOR ACEPTACIÓN (índice neto más alto):
+${top3pos.map(x=>`- ${x.cod}: +${x.posRec} positivas, −${x.negRec} negativas, neto ${x.neto>0?'+':''}${x.neto} | Categoría: ${x.cat}
+  Lo que dicen sus compañeros: ${(justPorCodigo[x.cod]||[]).filter(j=>j.tipo==='pos').slice(0,4).map(j=>'"'+j.texto+'"').join(', ')||'Sin comentarios escritos'}`).join('\n\n')}
+
+TOP 3 MAYOR RECHAZO / RIESGO:
+${top3neg.map(x=>`- ${x.cod}: +${x.posRec} positivas, −${x.negRec} negativas, neto ${x.neto>0?'+':''}${x.neto} | Categoría: ${x.cat}
+  Comentarios negativos: ${(justPorCodigo[x.cod]||[]).filter(j=>j.tipo==='neg').slice(0,4).map(j=>'"'+j.texto+'"').join(', ')||'Sin comentarios escritos'}`).join('\n\n')}
+
+ALUMNOS EN RIESGO O AISLADOS:
+${enRiesgo.map(x=>`- ${x.cod}: neto ${x.neto>0?'+':''}${x.neto}, categoría: ${x.cat}`).join('\n')||'Ninguno identificado'}
+
+INSTRUCCIONES DE FORMATO (MUY IMPORTANTES):
+- El informe debe tener estas 5 secciones claramente separadas con su título en MAYÚSCULAS seguido de dos puntos y salto de línea:
+  1. INTRODUCCIÓN:
+  2. DESCRIPCIÓN GENERAL DEL GRUPO:
+  3. ALUMNOS CON MAYOR ACEPTACIÓN SOCIAL:
+  4. ALUMNOS EN SITUACIÓN DE RIESGO O RECHAZO:
+  5. RECOMENDACIONES DE INTERVENCIÓN:
+- Tono: profesional, descriptivo, empático, pedagógico
+- Cada sección: 2-4 párrafos descriptivos con datos concretos integrados en el texto
+- En la sección 2 incluye datos de densidad, recíprocas y distribución de categorías
+- En secciones 3 y 4 cita literalmente algunas justificaciones de compañeros entre comillas
+- NO uses asteriscos, guiones de lista ni markdown. Solo texto plano con párrafos separados
+- Usa los códigos (AL-001 etc.) como identificadores. Los nombres reales los tiene el profesor`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await response.json();
+    informeTexto = data.content.map(b => b.text||'').join('');
+
+    // Renderizar con secciones destacadas
+    output.innerHTML = informeTexto.split('\n').map(line => {
+      const isTitle = /^[A-ZÁÉÍÓÚÑ\s]{5,}:/.test(line.trim()) && line.trim().length < 80;
+      if (isTitle) return `<div style="font-family:'Fraunces',serif;font-size:1rem;font-weight:700;color:var(--blue);margin-top:22px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${line}</div>`;
+      if (line.trim()==='') return '<div style="height:8px;"></div>';
+      return `<p style="margin-bottom:8px;line-height:1.75;">${line}</p>`;
+    }).join('');
+
+    document.getElementById('btn-pdf').style.display = 'inline-flex';
+    document.getElementById('btn-docx').style.display = 'inline-flex';
+  } catch(e) {
+    output.innerHTML = '<span style="color:var(--red);">Error al generar el informe. Verifica la conexión e inténtalo de nuevo.</span>';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '✨ Regenerar informe';
+}
+
+function descargarPDF() {
+  if (!informeTexto) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  const maxW = pageW - margin * 2;
+  let y = margin;
+
+  // Cabecera
+  doc.setFillColor(22, 27, 34);
+  doc.rect(0, 0, pageW, 30, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(88, 166, 255);
+  doc.text('INFORME SOCIOMÉTRICO', margin, 14);
+  doc.setFontSize(9);
+  doc.setTextColor(125, 133, 144);
+  doc.text(`Sesión: ${sesion?.id||''} · Fecha: ${new Date().toLocaleDateString('es-ES')} · Alumnado: ${sesion?.codigos?.length||0}`, margin, 22);
+  y = 40;
+
+  const lines = informeTexto.split('\n');
+  lines.forEach(line => {
+    const isTitle = /^[A-ZÁÉÍÓÚÑ\s]{5,}:/.test(line.trim()) && line.trim().length < 80;
+    if (line.trim() === '') { y += 3; return; }
+    if (y > 270) { doc.addPage(); y = margin; }
+
+    if (isTitle) {
+      y += 4;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30, 80, 140);
+      doc.text(line.trim(), margin, y);
+      doc.setDrawColor(88, 166, 255);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y+1.5, pageW-margin, y+1.5);
+      y += 8;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(40, 40, 40);
+      const wrapped = doc.splitTextToSize(line.trim(), maxW);
+      wrapped.forEach(wl => {
+        if (y > 275) { doc.addPage(); y = margin; }
+        doc.text(wl, margin, y);
+        y += 5.5;
+      });
+      y += 1;
+    }
+  });
+
+  doc.save(`sociograma_informe_${sesion?.id||''}.pdf`);
+}
+
+function descargarDOCX() {
+  if (!informeTexto) return;
+  const contenido = `INFORME SOCIOMÉTRICO\nSesión: ${sesion?.id||''} · Fecha: ${new Date().toLocaleDateString('es-ES')}\n\n${informeTexto}`;
+  const blob = new Blob([contenido], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sociograma_informe_${sesion?.id||''}.txt`;
+  a.click();
+  showToast('Descargado. Ábrelo en Word y aplica formato.');
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// EXPORTAR CSV
+// ══════════════════════════════════════════════════════════════════
+function exportarCSV() {
+  if (!sesion) return;
+  let csv = 'Codigo,Pregunta,Eleccion1,Eleccion2,Eleccion3,Justificacion\n';
+  sesion.codigos.forEach(cod => {
+    const r = respuestas[cod];
+    if (!r) return;
+    PREGUNTAS_SOCIO.forEach(p => {
+      const data = r[p.id];
+      if (!data) return;
+      const elecs = (data.elecciones||[]).map(j=>sesion.codigos[j]||j);
+      csv += `"${cod}","${p.texto}","${elecs[0]||''}","${elecs[1]||''}","${elecs[2]||''}","${(data.justificacion||'').replace(/"/g,"'")}"\n`;
+    });
+    PREGUNTAS_ROLES.forEach(p => {
+      const elecs = (r[p.id]||[]).map(j=>sesion.codigos[j]||j);
+      csv += `"${cod}","${p.texto}","${elecs[0]||''}","${elecs[1]||''}","${elecs[2]||''}",""\n`;
+    });
+  });
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `sociograma_${sesion.id}.csv`;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GRUPOS Y COHESIÓN
+// ══════════════════════════════════════════════════════════════════
+function renderGrupos() {
+  if (!sesion) return;
+  const pregIdx = parseInt(document.getElementById('grupos-preg-sel').value);
+  const arr = getEleccionesPregunta(pregIdx);
+  const n = arr.length;
+  const codigos = sesion.codigos;
+  const cont = document.getElementById('grupos-container');
+  cont.innerHTML = '';
+
+  // Detectar grupos: componentes conexas usando elecciones recíprocas
+  const visited = new Array(n).fill(false);
+  const grupos = [];
+
+  function bfs(start) {
+    const grupo = [];
+    const queue = [start];
+    visited[start] = true;
+    while (queue.length) {
+      const node = queue.shift();
+      grupo.push(node);
+      for (let j = 0; j < n; j++) {
+        if (!visited[j]) {
+          // Conexión si hay al menos una elección en cualquier dirección
+          const conectado = (arr[node]||[]).includes(j) || (arr[j]||[]).includes(node);
+          if (conectado) { visited[j] = true; queue.push(j); }
+        }
+      }
+    }
+    return grupo;
+  }
+
+  for (let i = 0; i < n; i++) {
+    if (!visited[i]) {
+      const g = bfs(i);
+      grupos.push(g);
+    }
+  }
+
+  // Ordenar grupos por tamaño
+  grupos.sort((a, b) => b.length - a.length);
+
+  // Calcular cohesión de cada grupo: enlaces reales / enlaces posibles
+  grupos.forEach((grupo, gi) => {
+    const m = grupo.length;
+    if (m === 0) return;
+    const posibles = m * (m - 1); // dirigido
+    let enlaces = 0, reciprocas = 0;
+    grupo.forEach(i => grupo.forEach(j => {
+      if (i === j) return;
+      if ((arr[i]||[]).includes(j)) {
+        enlaces++;
+        if ((arr[j]||[]).includes(i)) reciprocas++;
+      }
+    }));
+    reciprocas = reciprocas / 2; // cada recíproca se cuenta dos veces
+    const cohesion = posibles > 0 ? Math.round((enlaces / posibles) * 100) : 0;
+    const cohesionLabel = cohesion >= 60 ? { txt: 'Alta', color: 'var(--green)' }
+      : cohesion >= 30 ? { txt: 'Media', color: 'var(--orange)' }
+      : { txt: 'Baja', color: 'var(--red)' };
+
+    const isAislado = m === 1;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.marginBottom = '12px';
+    card.style.borderLeft = `3px solid ${isAislado ? 'var(--muted)' : cohesionLabel.color}`;
+
+    const titulo = isAislado
+      ? `<span style="color:var(--muted);">🔘 Alumno sin conexiones</span>`
+      : `<span>👥 Grupo ${gi + 1}</span> <span style="font-size:0.75rem;font-weight:400;color:var(--muted);">${m} miembros</span>`;
+
+    const miembros = grupo.map(i => `<span style="background:var(--surface2);border-radius:6px;padding:2px 8px;font-size:0.75rem;font-family:monospace;">${codigos[i]}</span>`).join(' ');
+
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div class="card-title" style="margin-bottom:0;">${titulo}</div>
+        ${!isAislado ? `<div style="display:flex;gap:16px;">
+          <div style="text-align:center;">
+            <div style="font-size:1.4rem;font-weight:800;color:${cohesionLabel.color};">${cohesion}%</div>
+            <div style="font-size:0.68rem;color:var(--muted);">Cohesión ${cohesionLabel.txt}</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:1.4rem;font-weight:800;color:var(--blue);">${reciprocas}</div>
+            <div style="font-size:0.68rem;color:var(--muted);">Recíprocas</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:1.4rem;font-weight:800;color:var(--purple);">${enlaces}</div>
+            <div style="font-size:0.68rem;color:var(--muted);">Total vínculos</div>
+          </div>
+        </div>` : ''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">${miembros}</div>
+      ${!isAislado ? `<div style="margin-top:10px;">
+        <div class="prog-bar-bg" style="height:5px;">
+          <div class="prog-bar" style="width:${cohesion}%;background:${cohesionLabel.color};"></div>
+        </div>
+      </div>` : ''}`;
+    cont.appendChild(card);
+  });
+
+  // Resumen global
+  const gruposReales = grupos.filter(g => g.length > 1);
+  const aislados = grupos.filter(g => g.length === 1).length;
+  const cohesionMedia = gruposReales.length > 0
+    ? Math.round(gruposReales.reduce((acc, grupo) => {
+        const posibles = grupo.length * (grupo.length - 1);
+        let enlaces = 0;
+        grupo.forEach(i => grupo.forEach(j => { if (i!==j && (arr[i]||[]).includes(j)) enlaces++; }));
+        return acc + (posibles > 0 ? enlaces/posibles : 0);
+      }, 0) / gruposReales.length * 100)
+    : 0;
+
+  const resumen = document.createElement('div');
+  resumen.className = 'card';
+  resumen.style.cssText = 'background:var(--surface2);margin-bottom:12px;';
+  resumen.innerHTML = `
+    <div class="card-title" style="margin-bottom:10px;">📊 Resumen de la clase</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;">
+      <div style="text-align:center;"><div style="font-size:1.6rem;font-weight:800;color:var(--blue);">${gruposReales.length}</div><div style="font-size:0.72rem;color:var(--muted);">Grupos detectados</div></div>
+      <div style="text-align:center;"><div style="font-size:1.6rem;font-weight:800;color:var(--orange);">${aislados}</div><div style="font-size:0.72rem;color:var(--muted);">Sin conexiones</div></div>
+      <div style="text-align:center;"><div style="font-size:1.6rem;font-weight:800;color:var(--green);">${cohesionMedia}%</div><div style="font-size:0.72rem;color:var(--muted);">Cohesión media</div></div>
+    </div>`;
+  cont.insertBefore(resumen, cont.firstChild);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BALANCE NETO
+// ══════════════════════════════════════════════════════════════════
+function renderBalance() {
+  if (!sesion) return;
+  const codigos = sesion.codigos;
+  const cont = document.getElementById('balance-container');
+  cont.innerHTML = '';
+
+  // Calcular pos y neg recibidas sumando todas las preguntas
+  const posRec = new Array(codigos.length).fill(0);
+  const negRec = new Array(codigos.length).fill(0);
+
+  PREGUNTAS_SOCIO.forEach((p, pi) => {
+    const arr = getEleccionesPregunta(pi);
+    const r = getRecibidas(arr);
+    r.forEach((v, i) => {
+      if (p.tipo === 'pos') posRec[i] += v;
+      else negRec[i] += v;
+    });
+  });
+
+  const data = codigos.map((cod, i) => ({
+    cod, pos: posRec[i], neg: negRec[i], neto: posRec[i] - negRec[i]
+  })).sort((a, b) => b.neto - a.neto);
+
+  const maxAbs = Math.max(...data.map(x => Math.max(x.pos, x.neg)), 1);
+
+  data.forEach((x, rank) => {
+    const color = x.neto > 0 ? 'var(--green)' : x.neto < 0 ? 'var(--red)' : 'var(--muted)';
+    const card = document.createElement('div');
+    card.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;';
+    card.innerHTML = `
+      <span style="font-family:monospace;font-size:0.7rem;color:var(--muted);min-width:22px;">#${rank+1}</span>
+      <span style="font-family:monospace;font-weight:700;font-size:0.82rem;min-width:72px;">${x.cod}</span>
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.65rem;color:var(--green);min-width:12px;">+</span>
+          <div style="flex:1;background:var(--surface2);border-radius:3px;height:5px;overflow:hidden;">
+            <div style="width:${(x.pos/maxAbs)*100}%;height:100%;background:var(--green);border-radius:3px;"></div>
+          </div>
+          <span style="font-size:0.72rem;color:var(--green);min-width:16px;text-align:right;">${x.pos}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.65rem;color:var(--red);min-width:12px;">−</span>
+          <div style="flex:1;background:var(--surface2);border-radius:3px;height:5px;overflow:hidden;">
+            <div style="width:${(x.neg/maxAbs)*100}%;height:100%;background:var(--red);border-radius:3px;"></div>
+          </div>
+          <span style="font-size:0.72rem;color:var(--red);min-width:16px;text-align:right;">${x.neg}</span>
+        </div>
+      </div>
+      <div style="text-align:right;min-width:48px;">
+        <div style="font-size:1.1rem;font-weight:800;color:${color};">${x.neto > 0 ? '+' : ''}${x.neto}</div>
+        <div style="font-size:0.62rem;color:var(--muted);">neto</div>
+      </div>`;
+    cont.appendChild(card);
+  });
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// ESTADÍSTICOS
+// ══════════════════════════════════════════════════════════════════
+let chartInstances = {};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+function categorizarAlumno(neto, posRec, negRec, totalAlumnos) {
+  const umbralPop = totalAlumnos * 0.2;
+  if (posRec >= umbralPop && neto > 2) return { label: 'Estrella social', color: '#3fb950' };
+  if (negRec >= umbralPop && neto < -2) return { label: 'Rechazado/a', color: '#f85149' };
+  if (posRec === 0 && negRec === 0) return { label: 'Aislado/a', color: '#7d8590' };
+  if (neto < -1 && negRec > posRec) return { label: 'En riesgo', color: '#d29922' };
+  if (neto > 1 && posRec > negRec) return { label: 'Bien integrado/a', color: '#58a6ff' };
+  return { label: 'Posición media', color: '#bc8cff' };
+}
+
+function renderEstadisticos() {
+  if (!sesion) return;
+  const codigos = sesion.codigos;
+  const n = codigos.length;
+
+  // Calcular datos base
+  const posRec = new Array(n).fill(0);
+  const negRec = new Array(n).fill(0);
+  const posEm = new Array(n).fill(0);
+  const negEm = new Array(n).fill(0);
+
+  PREGUNTAS_SOCIO.forEach((p, pi) => {
+    const arr = getEleccionesPregunta(pi);
+    arr.forEach((elecs, i) => {
+      if (p.tipo === 'pos') posEm[i] += elecs.length;
+      else negEm[i] += elecs.length;
+      elecs.forEach(j => {
+        if (p.tipo === 'pos') posRec[j]++;
+        else negRec[j]++;
+      });
+    });
+  });
+
+  const netos = codigos.map((_, i) => posRec[i] - negRec[i]);
+  const cats = codigos.map((_, i) => categorizarAlumno(netos[i], posRec[i], negRec[i], n));
+
+  // ── GRÁFICO 1: DONUT CATEGORÍAS ──────────────────────────────
+  destroyChart('categorias');
+  const catCount = {};
+  cats.forEach(c => { catCount[c.label] = (catCount[c.label]||0) + 1; });
+  const catLabels = Object.keys(catCount);
+  const catColors = catLabels.map(l => cats.find(c=>c.label===l).color);
+  const ctx1 = document.getElementById('chart-categorias').getContext('2d');
+  chartInstances['categorias'] = new Chart(ctx1, {
+    type: 'doughnut',
+    data: {
+      labels: catLabels,
+      datasets: [{ data: catLabels.map(l=>catCount[l]), backgroundColor: catColors, borderColor: '#161b22', borderWidth: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} alumno/as` } }
+      },
+      cutout: '62%'
+    }
+  });
+
+  const ley = document.getElementById('cat-leyenda');
+  ley.innerHTML = catLabels.map((l,i) => `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:11px;height:11px;border-radius:50%;background:${catColors[i]};flex-shrink:0;"></div>
+      <span style="font-size:0.8rem;font-weight:600;">${l}</span>
+      <span style="font-size:0.8rem;color:var(--muted);margin-left:auto;">${catCount[l]} alumno${catCount[l]!==1?'s':''}</span>
+    </div>`).join('');
+
+  // ── GRÁFICO 2: BARRAS APILADAS POS vs NEG ────────────────────
+  destroyChart('barras');
+  // Ordenar por neto desc
+  const orden = codigos.map((_,i)=>i).sort((a,b)=>netos[b]-netos[a]);
+  const ctx2 = document.getElementById('chart-barras').getContext('2d');
+  chartInstances['barras'] = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: orden.map(i => codigos[i]),
+      datasets: [
+        { label: 'Positivas recibidas', data: orden.map(i=>posRec[i]), backgroundColor: 'rgba(63,185,80,0.7)', borderColor: '#3fb950', borderWidth: 1 },
+        { label: 'Negativas recibidas', data: orden.map(i=>negRec[i]), backgroundColor: 'rgba(248,81,73,0.7)', borderColor: '#f85149', borderWidth: 1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#e6edf3', font: { family: 'Outfit' } } }, tooltip: { mode: 'index' } },
+      scales: {
+        x: { ticks: { color: '#7d8590', font: { size: 9 } }, grid: { color: 'rgba(48,54,61,0.5)' } },
+        y: { ticks: { color: '#7d8590' }, grid: { color: 'rgba(48,54,61,0.5)' }, beginAtZero: true }
+      }
+    }
+  });
+
+  // ── GRÁFICO 3: DISPERSIÓN popularidad vs neto ─────────────────
+  destroyChart('dispersion');
+  const ctx3 = document.getElementById('chart-dispersion').getContext('2d');
+  chartInstances['dispersion'] = new Chart(ctx3, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Alumnos',
+        data: codigos.map((cod,i) => ({ x: posRec[i]+negRec[i], y: netos[i], label: cod })),
+        backgroundColor: codigos.map((_,i) => cats[i].color + 'cc'),
+        borderColor: codigos.map((_,i) => cats[i].color),
+        borderWidth: 1.5,
+        pointRadius: 7,
+        pointHoverRadius: 10
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw.label} — popular.: ${ctx.raw.x}, neto: ${ctx.raw.y}` } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Popularidad (total elecciones recibidas)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(48,54,61,0.5)' } },
+        y: { title: { display: true, text: 'Índice neto', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(48,54,61,0.5)' } }
+      }
+    }
+  });
+
+  // ── TABLA RESUMEN ─────────────────────────────────────────────
+  const tbody = document.getElementById('tabla-resumen-body');
+  tbody.innerHTML = '';
+  orden.forEach((i, rank) => {
+    const cat = cats[i];
+    const neto = netos[i];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--muted);font-size:0.72rem;">${rank+1}</td>
+      <td><strong style="font-family:monospace;">${codigos[i]}</strong></td>
+      <td style="color:var(--green);font-weight:700;text-align:center;">${posRec[i]}</td>
+      <td style="color:var(--red);font-weight:700;text-align:center;">${negRec[i]}</td>
+      <td style="font-weight:800;text-align:center;color:${neto>0?'var(--green)':neto<0?'var(--red)':'var(--muted)'};">${neto>0?'+':''}${neto}</td>
+      <td style="color:var(--blue);text-align:center;">${posEm[i]}</td>
+      <td style="color:var(--orange);text-align:center;">${negEm[i]}</td>
+      <td><span style="background:${cat.color}22;color:${cat.color};border-radius:99px;padding:2px 9px;font-size:0.7rem;font-weight:700;white-space:nowrap;">${cat.label}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+
+  sociograma: () => setTimeout(renderGrafo, 30),
+  estadisticos: renderEstadisticos,
+  riesgo: renderAnalisisSocial,
+  grupos: renderGrupos,
+  balance: renderBalance,
+  roles: renderRoles,
+  justificaciones: renderJust,
+  matriz: renderMatriz,
+  informe: () => {}
+};
+
+function switchResTab(name) {
+  document.querySelectorAll('#res-tabs .tab').forEach((t,i) => {
+    const map = ['sociograma','estadisticos','riesgo','grupos','balance','roles','justificaciones','matriz','informe'];
+    t.classList.toggle('active', map[i]===name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tp-'+name).classList.add('active');
+  if (tabActions[name]) tabActions[name]();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IMPRIMIR TABLA EQUIVALENCIAS
+// ══════════════════════════════════════════════════════════════════
+function imprimirTabla() {
+  const n = parseInt(document.getElementById('p-num-alumnos').value);
+  document.getElementById('print-fecha').textContent = new Date().toLocaleDateString('es-ES');
+  document.getElementById('print-sesion').textContent = sesion?.id || '(pendiente)';
+  const tbody = document.getElementById('print-tbody');
+  tbody.innerHTML = '';
+  for (let i=1;i<=n;i++){
+    const cod = document.getElementById('cb-'+i)?.textContent.trim()||'';
+    const nombre = document.getElementById('cn-'+i)?.value.trim()||'';
+    tbody.innerHTML += `<tr><td>${cod}</td><td>${nombre}</td><td style="width:120px;"></td></tr>`;
+  }
+  document.getElementById('print-tabla').style.display = 'block';
+  window.print();
+  document.getElementById('print-tabla').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ALUMNO — ENTRADA
+// ══════════════════════════════════════════════════════════════════
+let alumnoSesion = null;
+let alumnoCod = null;
+
+async function unirseAlumno() {
+  const codSesion = document.getElementById('a-cod-sesion').value.trim().toUpperCase();
+  const codPersonal = document.getElementById('a-cod-personal').value.trim().toUpperCase();
+  const err = document.getElementById('a-error');
+  err.style.display = 'none';
+
+  if (!codSesion || codSesion.length < 7) { err.textContent='Código de sesión incompleto.'; err.style.display='block'; return; }
+  if (!codPersonal) { err.textContent='Introduce tu código personal.'; err.style.display='block'; return; }
+
+  try {
+    const doc = await db.collection('sesiones').doc(codSesion).get();
+    if (!doc.exists) { err.textContent='Sesión no encontrada. Verifica el código con tu profesor/a.'; err.style.display='block'; return; }
+    const data = doc.data();
+    if (!data.abierta) { err.textContent='La encuesta está cerrada. Habla con tu profesor/a.'; err.style.display='block'; return; }
+    if (!data.codigos.includes(codPersonal)) { err.textContent='Tu código personal no pertenece a esta sesión.'; err.style.display='block'; return; }
+
+    // Verificar si ya respondió
+    const respDoc = await db.collection('sesiones').doc(codSesion).collection('respuestas').doc(codPersonal).get();
+    if (respDoc.exists) { err.textContent='Ya has respondido esta encuesta. Gracias.'; err.style.display='block'; return; }
+
+    alumnoSesion = { id: codSesion, codigos: data.codigos };
+    alumnoCod = codPersonal;
+    document.getElementById('a-cod-display').textContent = codPersonal;
+    buildAluForm();
+    goScreen('screen-alumno-form');
+  } catch(e) {
+    err.textContent = 'Error de conexión. Inténtalo de nuevo.';
+    err.style.display = 'block';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ALUMNO — FORMULARIO
+// ══════════════════════════════════════════════════════════════════
+function buildAluForm() {
+  const miIdx = alumnoSesion.codigos.indexOf(alumnoCod);
+  const cont = document.getElementById('alu-form-content');
+  cont.innerHTML = '';
+
+  // BLOQUE 1 — Sociométrico
+  const b1 = document.createElement('div');
+  b1.innerHTML = '<div style="font-family:Fraunces,serif;font-size:1.3rem;font-weight:700;margin-bottom:16px;">Parte 1: Relaciones personales</div>';
+
+  PREGUNTAS_SOCIO.forEach((p, pi) => {
+    const div = document.createElement('div');
+    div.className = 'alu-pregunta';
+    div.innerHTML = `<div class="bloque-label">Pregunta ${pi+1} de ${PREGUNTAS_SOCIO.length}</div>
+      <h3>${p.texto}</h3>`;
+
+    for (let e=0;e<NUM_ELEC;e++){
+      // Wrapper para selector + justificación juntos
+      const elecWrap = document.createElement('div');
+      elecWrap.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(88,166,255,0.1);border-radius:8px;padding:10px 12px;margin-bottom:8px;';
+
+      const row = document.createElement('div');
+      row.className = 'nom-select-row';
+      row.style.marginBottom = '0';
+      const sel = document.createElement('select');
+      sel.id = `alu-${pi}-${e}`;
+      sel.innerHTML = '<option value="">— Elige un compañero/a —</option>';
+      alumnoSesion.codigos.forEach((cod,j)=>{
+        if (j===miIdx) return;
+        sel.innerHTML += `<option value="${j}">${cod}</option>`;
+      });
+      row.innerHTML = `<span class="nom-num">${e+1}ª</span>`;
+      row.appendChild(sel);
+      elecWrap.appendChild(row);
+
+      if (p.justificacion) {
+        const jDiv = document.createElement('div');
+        jDiv.style.marginTop = '8px';
+        jDiv.innerHTML = `<label class="field-label" style="font-size:0.65rem;margin-bottom:3px;">¿Por qué esta persona? (opcional)</label>
+          <input type="text" id="just-${pi}-${e}" placeholder="Pocas palabras..." style="font-size:0.8rem;padding:5px 9px;">`;
+        elecWrap.appendChild(jDiv);
+      }
+
+      div.appendChild(elecWrap);
+    }
+
+    b1.appendChild(div);
+  });
+  cont.appendChild(b1);
+
+  // BLOQUE 2 — Roles
+  const b2 = document.createElement('div');
+  b2.innerHTML = '<div style="font-family:Fraunces,serif;font-size:1.3rem;font-weight:700;margin:24px 0 16px;">Parte 2: Roles en clase</div>';
+
+  PREGUNTAS_ROLES.forEach((p, ri) => {
+    const div = document.createElement('div');
+    div.className = 'alu-pregunta';
+    div.innerHTML = `<div class="bloque-label">Pregunta ${ri+1} de ${PREGUNTAS_ROLES.length}</div>
+      <h3>${p.texto}</h3>`;
+
+    for (let e=0;e<NUM_ELEC;e++){
+      const row = document.createElement('div');
+      row.className = 'nom-select-row';
+      const sel = document.createElement('select');
+      sel.id = `alu-r${ri}-${e}`;
+      sel.innerHTML = '<option value="">— Elige un compañero/a —</option>';
+      alumnoSesion.codigos.forEach((cod,j)=>{
+        if (j===miIdx) return;
+        sel.innerHTML += `<option value="${j}">${cod}</option>`;
+      });
+      row.innerHTML = `<span class="nom-num">${e+1}ª</span>`;
+      row.appendChild(sel);
+      div.appendChild(row);
+    }
+    b2.appendChild(div);
+  });
+  cont.appendChild(b2);
+}
+
+async function enviarRespuesta() {
+  const err = document.getElementById('a-send-error');
+  err.style.display = 'none';
+  const btn = document.getElementById('btn-enviar');
+
+  const miIdx = alumnoSesion.codigos.indexOf(alumnoCod);
+  const datos = {};
+
+  let alguna = false;
+  PREGUNTAS_SOCIO.forEach((p,pi) => {
+    const elecs = [];
+    const justs = [];
+    for (let e=0;e<NUM_ELEC;e++){
+      const v = document.getElementById(`alu-${pi}-${e}`)?.value;
+      const j = document.getElementById(`just-${pi}-${e}`)?.value.trim()||'';
+      if (v!=='') { elecs.push(parseInt(v)); justs.push(j); }
+    }
+    if (elecs.length>0) alguna = true;
+    datos[p.id] = { elecciones: elecs, justificaciones: justs };
+  });
+
+  PREGUNTAS_ROLES.forEach((p,ri) => {
+    const elecs = [];
+    for (let e=0;e<NUM_ELEC;e++){
+      const v = document.getElementById(`alu-r${ri}-${e}`)?.value;
+      if (v!=='') elecs.push(parseInt(v));
+    }
+    if (elecs.length>0) alguna = true;
+    datos[p.id] = elecs;
+  });
+
+  if (!alguna) { err.textContent='Por favor, responde al menos una pregunta.'; err.style.display='block'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+
+  try {
+    await db.collection('sesiones').doc(alumnoSesion.id)
+      .collection('respuestas').doc(alumnoCod).set(datos);
+    goScreen('screen-gracias');
+  } catch(e) {
+    err.textContent = 'Error al enviar. Verifica tu conexión.';
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = '✓ Enviar mis respuestas';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-resultados').classList.contains('active')) {
+    simNodes = []; renderGrafo();
+  }
+});
+</script>
+</body>
+</html>
