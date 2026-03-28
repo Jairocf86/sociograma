@@ -720,7 +720,7 @@ textarea { resize: vertical; min-height: 60px; }
     <div class="logo">Socio<em>grama</em></div>
     <span class="role-tag tag-profe">Resultados</span>
     <div style="margin-left:auto;display:flex;gap:8px;">
-      <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">⬇ CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">⬇ Exportar datos</button>
     </div>
   </div>
   <div class="screen-body wide">
@@ -1641,6 +1641,22 @@ async function generarInforme() {
   totalRecip=totalRecip/2;
   const densidad = Math.round((arrPos0.reduce((s,e)=>s+e.length,0)/(n*(n-1)))*100);
 
+  // Calcular votos por pregunta para tabla resumen
+  const votosPorPregunta = PREGUNTAS_SOCIO.map((p, pi) => {
+    const arr = getEleccionesPregunta(pi);
+    const rec = getRecibidas(arr);
+    return { id: p.id, texto: p.texto, tipo: p.tipo, rec };
+  });
+
+  const tablaResumenTexto = codigos.map((cod, i) => {
+    const fila = votosPorPregunta.map(vp => vp.rec[i]);
+    return `${cod} | ${fila.join(' | ')}`;
+  }).join('\n');
+
+  const cabecera = 'Código | ' + votosPorPregunta.map(vp =>
+    (vp.tipo==='pos'?'(+)':'(-)') + ' ' + vp.texto.substring(0,20)
+  ).join(' | ');
+
   const prompt = `Eres un orientador/a escolar experto/a en análisis sociométrico. Genera un INFORME SOCIOMÉTRICO PROFESIONAL en español, mayoritariamente descriptivo, basado en datos reales de una encuesta realizada a ${n} alumnos (respondieron ${totalRespondidos}).
 
 ESTADÍSTICOS DE LA CLASE:
@@ -1660,23 +1676,29 @@ ${top3neg.map(x=>`- ${x.cod}: +${x.posRec} positivas, −${x.negRec} negativas, 
 ALUMNOS EN RIESGO O AISLADOS:
 ${enRiesgo.map(x=>`- ${x.cod}: neto ${x.neto>0?'+':''}${x.neto}, categoría: ${x.cat}`).join('\n')||'Ninguno identificado'}
 
+TABLA RESUMEN DE VOTOS (incluir en el informe):
+${cabecera}
+${tablaResumenTexto}
+
 INSTRUCCIONES DE FORMATO (MUY IMPORTANTES):
-- El informe debe tener estas 5 secciones claramente separadas con su título en MAYÚSCULAS seguido de dos puntos y salto de línea:
+- El informe debe tener estas 6 secciones claramente separadas con su título en MAYÚSCULAS seguido de dos puntos y salto de línea:
   1. INTRODUCCIÓN:
   2. DESCRIPCIÓN GENERAL DEL GRUPO:
   3. ALUMNOS CON MAYOR ACEPTACIÓN SOCIAL:
   4. ALUMNOS EN SITUACIÓN DE RIESGO O RECHAZO:
-  5. RECOMENDACIONES DE INTERVENCIÓN:
+  5. TABLA RESUMEN DE VOTOS:
+  6. RECOMENDACIONES DE INTERVENCIÓN:
+- En la sección 5 (TABLA RESUMEN DE VOTOS) reproduce la tabla anterior en formato legible con columnas separadas por | y una fila por alumno. Incluye la cabecera.
 - Tono: profesional, descriptivo, empático, pedagógico
-- Cada sección: 2-4 párrafos descriptivos con datos concretos integrados en el texto
+- Cada sección narrativa: 2-4 párrafos descriptivos con datos concretos integrados en el texto
 - En la sección 2 incluye datos de densidad, recíprocas y distribución de categorías
 - En secciones 3 y 4 cita literalmente algunas justificaciones de compañeros entre comillas
 - NO uses asteriscos, guiones de lista ni markdown. Solo texto plano con párrafos separados
-- Usa los códigos (AL-001 etc.) como identificadores. Los nombres reales los tiene el profesor`;
+- Usa los códigos (AL-001 etc.) como identificadores. El profesor tiene la tabla de equivalencias con los nombres reales`;
 
   try {
     const GEMINI_KEY = 'AIzaSyDia7YrmTbTljWREHFhzjRWOngC1ajEmW0';
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1687,11 +1709,25 @@ INSTRUCCIONES DE FORMATO (MUY IMPORTANTES):
     const data = await response.json();
     informeTexto = data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || 'No se pudo generar el informe.';
 
-    // Renderizar con secciones destacadas
+    // Renderizar con secciones destacadas y tabla
+    let enTabla = false;
     output.innerHTML = informeTexto.split('\n').map(line => {
       const isTitle = /^[A-ZÁÉÍÓÚÑ\s]{5,}:/.test(line.trim()) && line.trim().length < 80;
-      if (isTitle) return `<div style="font-family:'Fraunces',serif;font-size:1rem;font-weight:700;color:var(--blue);margin-top:22px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${line}</div>`;
-      if (line.trim()==='') return '<div style="height:8px;"></div>';
+      const isTablaTitle = /TABLA RESUMEN/i.test(line.trim());
+      const isTablaRow = line.includes('|') && line.trim().length > 3;
+
+      if (isTitle) {
+        enTabla = isTablaTitle;
+        return `<div style="font-family:'Fraunces',serif;font-size:1rem;font-weight:700;color:var(--blue);margin-top:22px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${line}</div>`;
+      }
+      if (line.trim()==='') return '<div style="height:6px;"></div>';
+      if (isTablaRow) {
+        const cells = line.split('|').map(c => c.trim());
+        const isHeader = cells[0].toUpperCase() === cells[0] && cells[0].includes('CÓDIGO') || cells[0].includes('Código') || /^[A-Z]{2}-/.test(cells[0]) === false && cells.some(c=>/\(\+\)|\(\-\)/.test(c));
+        return `<div style="display:flex;gap:0;font-family:monospace;font-size:0.72rem;border-bottom:1px solid var(--border);${isHeader?'background:var(--surface2);font-weight:700;':''}">
+          ${cells.map((c,ci) => `<span style="flex:${ci===0?'1.5':'1'};padding:4px 6px;border-right:1px solid var(--border);overflow:hidden;">${c}</span>`).join('')}
+        </div>`;
+      }
       return `<p style="margin-bottom:8px;line-height:1.75;">${line}</p>`;
     }).join('');
 
@@ -1729,6 +1765,7 @@ function descargarPDF() {
   const lines = informeTexto.split('\n');
   lines.forEach(line => {
     const isTitle = /^[A-ZÁÉÍÓÚÑ\s]{5,}:/.test(line.trim()) && line.trim().length < 80;
+    const isTablaRow = line.includes('|') && line.trim().length > 3;
     if (line.trim() === '') { y += 3; return; }
     if (y > 270) { doc.addPage(); y = margin; }
 
@@ -1742,6 +1779,30 @@ function descargarPDF() {
       doc.setLineWidth(0.3);
       doc.line(margin, y+1.5, pageW-margin, y+1.5);
       y += 8;
+    } else if (isTablaRow) {
+      // Renderizar fila de tabla en PDF
+      const cells = line.split('|').map(c => c.trim());
+      const isHeader = cells.some(c => /\(\+\)|\(\-\)/.test(c));
+      const colW = maxW / cells.length;
+      if (y > 272) { doc.addPage(); y = margin; }
+      if (isHeader) {
+        doc.setFillColor(240, 245, 255);
+        doc.rect(margin, y-3.5, maxW, 6, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(30, 80, 140);
+      } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(40, 40, 40);
+      }
+      cells.forEach((cell, ci) => {
+        doc.text(cell.substring(0,18), margin + ci * colW + 1, y);
+      });
+      doc.setDrawColor(200, 210, 230);
+      doc.setLineWidth(0.1);
+      doc.line(margin, y+2, margin+maxW, y+2);
+      y += 5.5;
     } else {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
@@ -1772,29 +1833,137 @@ function descargarDOCX() {
 
 
 // ══════════════════════════════════════════════════════════════════
-// EXPORTAR CSV
+// EXPORTAR — DOS ARCHIVOS CSV
 // ══════════════════════════════════════════════════════════════════
 function exportarCSV() {
   if (!sesion) return;
-  let csv = 'Codigo,Pregunta,Eleccion1,Eleccion2,Eleccion3,Justificacion\n';
-  sesion.codigos.forEach(cod => {
+  exportarDatosCrudos();
+  setTimeout(() => exportarPlantillaNombres(), 900);
+  showToast('Descargando 2 archivos...');
+}
+
+function calcVotos() {
+  const codigos = sesion.codigos;
+  const n = codigos.length;
+  const posRec = new Array(n).fill(0);
+  const negRec = new Array(n).fill(0);
+  PREGUNTAS_SOCIO.forEach((p, pi) => {
+    const arr = getEleccionesPregunta(pi);
+    arr.forEach((elecs, i) => elecs.forEach(j => {
+      if (p.tipo==='pos') posRec[j]++; else negRec[j]++;
+    }));
+  });
+  return { posRec, negRec };
+}
+
+function exportarDatosCrudos() {
+  const codigos = sesion.codigos;
+  const n = codigos.length;
+  const { posRec, negRec } = calcVotos();
+
+  // Detectar subgrupos por recíprocas
+  const arrPos0 = getEleccionesPregunta(0);
+  const visited = new Array(n).fill(false);
+  const subgrupos = [];
+  const bfsR = (start) => {
+    const g=[], q=[start]; visited[start]=true;
+    while(q.length){const node=q.shift();g.push(node);for(let j=0;j<n;j++){if(!visited[j]&&(arrPos0[node]||[]).includes(j)&&(arrPos0[j]||[]).includes(node)){visited[j]=true;q.push(j);}}}
+    return g;
+  };
+  for(let i=0;i<n;i++) if(!visited[i]) subgrupos.push(bfsR(i));
+  const subgrupoDeAlumno = new Array(n).fill('Sin subgrupo');
+  subgrupos.forEach((g,gi) => { if(g.length>1) g.forEach(i => subgrupoDeAlumno[i]=`Subgrupo ${gi+1} (${g.length} miembros)`); });
+
+  let csv = 'Sesion,Codigo,Pos_Recibidos,Neg_Recibidos,Indice_Neto,Subgrupo';
+  PREGUNTAS_SOCIO.forEach(p => { csv += `,${p.id}_Elec1,${p.id}_Elec2,${p.id}_Elec3,${p.id}_Just1,${p.id}_Just2,${p.id}_Just3`; });
+  PREGUNTAS_ROLES.forEach(p => { csv += `,${p.id}_Nom1,${p.id}_Nom2,${p.id}_Nom3`; });
+  csv += '\n';
+
+  codigos.forEach((cod, i) => {
+    const r = respuestas[cod];
+    const neto = posRec[i] - negRec[i];
+    let fila = `"${sesion.id}","${cod}",${posRec[i]},${negRec[i]},${neto},"${subgrupoDeAlumno[i]}"`;
+    PREGUNTAS_SOCIO.forEach(p => {
+      const data = r ? r[p.id] : null;
+      const elecs = data ? (data.elecciones||[]).map(j=>codigos[j]||j) : [];
+      const justs = data ? (data.justificaciones||[]) : [];
+      fila += `,"${elecs[0]||''}","${elecs[1]||''}","${elecs[2]||''}","${(justs[0]||'').replace(/"/g,"'")}","${(justs[1]||'').replace(/"/g,"'")}","${(justs[2]||'').replace(/"/g,"'")}"`;
+    });
+    PREGUNTAS_ROLES.forEach(p => {
+      const elecs = r && r[p.id] ? r[p.id].map(j=>codigos[j]||j) : [];
+      fila += `,"${elecs[0]||''}","${elecs[1]||''}","${elecs[2]||''}"`;
+    });
+    csv += fila + '\n';
+  });
+
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.download = `sociograma_${sesion.id}_DATOS.csv`;
+  a.click();
+}
+
+function exportarPlantillaNombres() {
+  const codigos = sesion.codigos;
+  const n = codigos.length;
+  const { posRec, negRec } = calcVotos();
+
+  // Sección 1: Tabla de equivalencias
+  let csv = 'SECCION 1 - TABLA DE EQUIVALENCIAS (rellena la columna Nombre)\n';
+  csv += 'Codigo,Nombre_Alumno\n';
+  codigos.forEach(cod => { csv += `"${cod}",\n`; });
+
+  // Sección 2: Resumen de votos
+  csv += '\nSECCION 2 - RESUMEN DE VOTOS (sustituye los codigos por nombres usando la tabla anterior)\n';
+  const cabVotos = PREGUNTAS_SOCIO.map(p => `"${p.tipo==='pos'?'(+)':'(-)'}${p.texto.substring(0,18)}"`).join(',');
+  csv += `"Codigo","Nombre","Total Pos Rec","Total Neg Rec","Indice Neto",${cabVotos}\n`;
+  codigos.forEach((cod, i) => {
+    const neto = posRec[i] - negRec[i];
+    let fila = `"${cod}","",${posRec[i]},${negRec[i]},${neto>0?'+':''}${neto}`;
+    PREGUNTAS_SOCIO.forEach((p, pi) => {
+      const arr = getEleccionesPregunta(pi);
+      fila += `,${getRecibidas(arr)[i]}`;
+    });
+    csv += fila + '\n';
+  });
+
+  // Sección 3: Justificaciones
+  csv += '\nSECCION 3 - JUSTIFICACIONES (codigo de quien escribe, pregunta, codigo elegido, motivo)\n';
+  csv += '"Codigo_Autor","Nombre_Autor","Pregunta","Codigo_Elegido","Nombre_Elegido","Justificacion"\n';
+  codigos.forEach(cod => {
     const r = respuestas[cod];
     if (!r) return;
     PREGUNTAS_SOCIO.forEach(p => {
       const data = r[p.id];
       if (!data) return;
-      const elecs = (data.elecciones||[]).map(j=>sesion.codigos[j]||j);
-      csv += `"${cod}","${p.texto}","${elecs[0]||''}","${elecs[1]||''}","${elecs[2]||''}","${(data.justificacion||'').replace(/"/g,"'")}"\n`;
-    });
-    PREGUNTAS_ROLES.forEach(p => {
-      const elecs = (r[p.id]||[]).map(j=>sesion.codigos[j]||j);
-      csv += `"${cod}","${p.texto}","${elecs[0]||''}","${elecs[1]||''}","${elecs[2]||''}",""\n`;
+      (data.elecciones||[]).forEach((j, ei) => {
+        const just = ((data.justificaciones||[])[ei]||'').trim();
+        if (just) csv += `"${cod}","","${p.texto}","${codigos[j]||j}","","${just.replace(/"/g,"'")}\n`;
+      });
     });
   });
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = `sociograma_${sesion.id}.csv`;
-  a.click();
+
+  // Sección 4: Subgrupos
+  csv += '\nSECCION 4 - SUBGRUPOS DETECTADOS (basados en elecciones reciprocas de tiempo libre)\n';
+  csv += '"Subgrupo","Miembros","Cohesion_Estimada"\n';
+  const arrPos0 = getEleccionesPregunta(0);
+  const vis2 = new Array(n).fill(false);
+  const sgs = [];
+  const bfs2 = (s) => { const g=[],q=[s]; vis2[s]=true; while(q.length){const nd=q.shift();g.push(nd);for(let j=0;j<n;j++){if(!vis2[j]&&(arrPos0[nd]||[]).includes(j)&&(arrPos0[j]||[]).includes(nd)){vis2[j]=true;q.push(j);}}} return g; };
+  for(let i=0;i<n;i++) if(!vis2[i]) sgs.push(bfs2(i));
+  sgs.filter(g=>g.length>1).forEach((g,gi) => {
+    let recip=0, posibles=g.length*(g.length-1)/2;
+    g.forEach(i=>g.forEach(j=>{if(i<j&&(arrPos0[i]||[]).includes(j)&&(arrPos0[j]||[]).includes(i))recip++;}));
+    const coh = posibles>0 ? Math.round(recip/posibles*100) : 0;
+    const cohLabel = coh>=60?'Alta':coh>=30?'Media':'Baja';
+    csv += `"Subgrupo ${gi+1}","${g.map(i=>codigos[i]).join(' | ')}","${coh}% (${cohLabel})"\n`;
+  });
+  const aislados = sgs.filter(g=>g.length===1).map(g=>codigos[g[0]]);
+  if (aislados.length) csv += `"Sin subgrupo","${aislados.join(' | ')}","-"\n`;
+
+  const b = document.createElement('a');
+  b.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  b.download = `sociograma_${sesion.id}_NOMBRES.csv`;
+  b.click();
 }
 
 // ══════════════════════════════════════════════════════════════════
