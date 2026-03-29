@@ -1698,44 +1698,109 @@ async function generarInforme() {
     (vp.tipo==='pos'?'(+)':'(-)') + ' ' + vp.texto.substring(0,20)
   ).join(' | ');
 
-  const prompt = `Eres un orientador/a escolar experto/a en análisis sociométrico. Genera un INFORME SOCIOMÉTRICO PROFESIONAL en español, mayoritariamente descriptivo, basado en datos reales de una encuesta realizada a ${n} alumnos (respondieron ${totalRespondidos}).
+  // Calcular top 5 por categoria para el prompt
+  const top5aceptacion = [...sorted].slice(0,5);
+  const top5rechazo = [...sorted].sort((a,b)=>b.negRec-a.negRec).slice(0,5);
+  const top5riesgo = [...sorted].sort((a,b)=>a.neto-b.neto).slice(0,5);
 
-ESTADÍSTICOS DE LA CLASE:
-- Total alumnos: ${n} | Respondieron: ${totalRespondidos} (${Math.round(totalRespondidos/n*100)}%)
-- Elecciones recíprocas (tiempo libre): ${totalRecip}
-- Densidad de la red: ${densidad}%
-- Distribución por categorías: ${Object.entries(catCount).map(([k,v])=>`${k}: ${v}`).join(', ')}
+  // Calcular subgrupos para el prompt
+  const arrPos0Sg = getEleccionesPregunta(0);
+  const visitedSg = new Array(n).fill(false);
+  const subgruposSg = [];
+  const bfsSg = (s) => { const g=[],q=[s]; visitedSg[s]=true; while(q.length){const nd=q.shift();g.push(nd);for(let j=0;j<n;j++){if(!visitedSg[j]&&(arrPos0Sg[nd]||[]).includes(j)&&(arrPos0Sg[j]||[]).includes(nd)){visitedSg[j]=true;q.push(j);}}} return g; };
+  for(let i=0;i<n;i++) if(!visitedSg[i]) subgruposSg.push(bfsSg(i));
+  subgruposSg.sort((a,b)=>b.length-a.length);
+  const subgruposRealesSg = subgruposSg.filter(g=>g.length>1);
+  const aisladosSg = subgruposSg.filter(g=>g.length===1).map(g=>codigos[g[0]]);
 
-TOP 3 MAYOR ACEPTACIÓN (índice neto más alto):
-${top3pos.map(x=>`- ${x.cod}: +${x.posRec} positivas, −${x.negRec} negativas, neto ${x.neto>0?'+':''}${x.neto} | Categoría: ${x.cat}
-  Lo que dicen sus compañeros: ${(justPorCodigo[x.cod]||[]).filter(j=>j.tipo==='pos').slice(0,4).map(j=>'"'+j.texto+'"').join(', ')||'Sin comentarios escritos'}`).join('\n\n')}
+  const tablaSubgrupos = subgruposRealesSg.map((g,gi) => {
+    let recip=0, pos=g.length*(g.length-1)/2;
+    g.forEach(i=>g.forEach(j=>{if(i<j&&(arrPos0Sg[i]||[]).includes(j)&&(arrPos0Sg[j]||[]).includes(i))recip++;}));
+    const coh = pos>0?Math.round(recip/pos*100):0;
+    const obs = coh>=60?'Cohesionado, nucleo fuerte':coh>=30?'Cohesion media':'Poco cohesionado';
+    return `Subgrupo ${gi+1} | ${g.map(i=>codigos[i]).join(', ')} | ${coh}% | ${obs}`;
+  }).join('\n');
 
-TOP 3 MAYOR RECHAZO / RIESGO:
-${top3neg.map(x=>`- ${x.cod}: +${x.posRec} positivas, −${x.negRec} negativas, neto ${x.neto>0?'+':''}${x.neto} | Categoría: ${x.cat}
-  Comentarios negativos: ${(justPorCodigo[x.cod]||[]).filter(j=>j.tipo==='neg').slice(0,4).map(j=>'"'+j.texto+'"').join(', ')||'Sin comentarios escritos'}`).join('\n\n')}
+  const tablaAislamiento = top5riesgo.map(x =>
+    `${x.cod} | ${x.posRec} votos (+) | ${x.negRec} votos (-) | ${x.cat}`
+  ).join('\n');
 
-ALUMNOS EN RIESGO O AISLADOS:
-${enRiesgo.map(x=>`- ${x.cod}: neto ${x.neto>0?'+':''}${x.neto}, categoría: ${x.cat}`).join('\n')||'Ninguno identificado'}
+  const top5AceptLines = top5aceptacion.map(function(x) {
+    const justs = (justPorCodigo[x.cod]||[]).filter(function(j){return j.tipo==='pos';}).slice(0,4).map(function(j){return '"'+j.texto+'"';}).join(', ') || 'Sin comentarios';
+    return '- '+x.cod+': '+x.posRec+' votos positivos, '+x.negRec+' negativos, neto '+(x.neto>0?'+':'')+x.neto+'\n  Dicen sus companeros: '+justs;
+  }).join('\n\n');
 
-TABLA RESUMEN DE VOTOS (incluir en el informe):
-${cabecera}
-${tablaResumenTexto}
+  const top5RechazoLines = top5rechazo.map(function(x) {
+    const justsNeg = (justPorCodigo[x.cod]||[]).filter(function(j){return j.tipo==='neg';}).slice(0,4).map(function(j){return '"'+j.texto+'"';}).join(', ') || 'Sin comentarios';
+    const justsPos = (justPorCodigo[x.cod]||[]).filter(function(j){return j.tipo==='pos';}).slice(0,2).map(function(j){return '"'+j.texto+'"';}).join(', ') || 'Ninguno';
+    return '- '+x.cod+': '+x.posRec+' positivos, '+x.negRec+' negativos, neto '+(x.neto>0?'+':'')+x.neto+'\n  Comentarios negativos: '+justsNeg+'\n  Comentarios positivos: '+justsPos;
+  }).join('\n\n');
 
-INSTRUCCIONES DE FORMATO (MUY IMPORTANTES):
-- El informe debe tener estas 6 secciones claramente separadas con su título en MAYÚSCULAS seguido de dos puntos y salto de línea:
-  1. INTRODUCCIÓN:
-  2. DESCRIPCIÓN GENERAL DEL GRUPO:
-  3. ALUMNOS CON MAYOR ACEPTACIÓN SOCIAL:
-  4. ALUMNOS EN SITUACIÓN DE RIESGO O RECHAZO:
-  5. TABLA RESUMEN DE VOTOS:
-  6. RECOMENDACIONES DE INTERVENCIÓN:
-- En la sección 5 (TABLA RESUMEN DE VOTOS) reproduce la tabla anterior en formato legible con columnas separadas por | y una fila por alumno. Incluye la cabecera.
-- Tono: profesional, descriptivo, empático, pedagógico
-- Cada sección narrativa: 2-4 párrafos descriptivos con datos concretos integrados en el texto
-- En la sección 2 incluye datos de densidad, recíprocas y distribución de categorías
-- En secciones 3 y 4 cita literalmente algunas justificaciones de compañeros entre comillas
-- NO uses asteriscos, guiones de lista ni markdown. Solo texto plano con párrafos separados
-- Usa los códigos (AL-001 etc.) como identificadores. El profesor tiene la tabla de equivalencias con los nombres reales`;
+  const promptParts = [
+    'Eres un orientador/a escolar experto/a en analisis sociometrico del Departamento de Orientacion. Redacta un INFORME SOCIOMETRICO PROFESIONAL en espanol, siguiendo exactamente la estructura del informe de referencia. El informe es mayoritariamente DESCRIPTIVO y analitico.',
+    '',
+    'DATOS DE LA ENCUESTA:',
+    '- Total alumnos: ' + n + ' | Respondieron: ' + totalRespondidos + ' (' + Math.round(totalRespondidos/n*100) + '%)',
+    '- Elecciones reciprocas (tiempo libre): ' + totalRecip,
+    '- Densidad de la red: ' + densidad + '%',
+    '',
+    'TOP 5 MAYOR ACEPTACION SOCIAL:',
+    top5AceptLines,
+    '',
+    'TOP 5 MAYOR RECHAZO:',
+    top5RechazoLines,
+    '',
+    'SUBGRUPOS IDENTIFICADOS:',
+    'Subgrupo | Componentes | Cohesion | Observaciones',
+    tablaSubgrupos || 'No se detectan subgrupos',
+    '',
+    'ALUMNOS SIN SUBGRUPO:',
+    aisladosSg.length ? aisladosSg.join(', ') : 'Ninguno',
+    '',
+    'TABLA RESUMEN DE VOTOS (todos los alumnos):',
+    cabecera,
+    tablaResumenTexto,
+    '',
+    'ESTRUCTURA EXACTA - USA ESTOS TITULOS EN MAYUSCULAS:',
+    '',
+    '1. INTRODUCCION Y PARTICIPACION:',
+    'Parrafo describiendo instrumento, fecha, objetivo y tasa de participacion.',
+    '',
+    '2. DINAMICA GENERAL DEL GRUPO:',
+    'Parrafo general. Luego:',
+    '',
+    '2.1. LIDERAZGO SOCIAL:',
+    'Los 3 mas aceptados. Tabla: Alumno/a | Votos positivos | Razones destacadas. Frase final en cursiva sobre su rol como referentes.',
+    '',
+    '2.2. SUBGRUPOS IDENTIFICADOS:',
+    'Parrafo introductorio. Tabla: Subgrupo | Componentes | Densidad | Observaciones. Si hay diada cerrada, mencionarla.',
+    '',
+    '2.3. AISLAMIENTO Y RECHAZO:',
+    'Parrafo sobre alumnos con menos votos positivos. Tabla: Alumno/a | Votos ocio (+) | Valoracion con los 5 de menor aceptacion. Parrafo final sobre los 3 con mas nominaciones negativas.',
+    '',
+    '3. ANALISIS CUALITATIVO DE LOS CASOS MAS RELEVANTES:',
+    '',
+    '3.1. PERFILES DE ALTA ACEPTACION:',
+    'Un parrafo por cada uno de los 3 mas aceptados. Codigo como encabezado. Justificaciones literales entre comillas.',
+    '',
+    '3.2. PERFILES CON DIFICULTADES DE INTEGRACION:',
+    'Un parrafo por cada uno de los 3 con mas rechazo. Codigo como encabezado. Datos concretos de votos en trabajo y ocio. Justificaciones entre comillas. Analisis estructural.',
+    '',
+    '4. TABLA RESUMEN DE VOTOS:',
+    'Tabla completa: Alumno/a | Trab.(+) | Trab.(-) | Ocio(+) | Ocio(-). Nota al pie sobre filas con mas nominaciones negativas.',
+    '',
+    '5. RECOMENDACION:',
+    'Maximo 2-3 frases muy concretas y breves. Sin listas.',
+    '',
+    'NORMAS ABSOLUTAS:',
+    '- Texto plano sin asteriscos ni markdown',
+    '- Tablas con columnas separadas por |',
+    '- Titulos en MAYUSCULAS seguidos de dos puntos',
+    '- Tono tecnico, profesional, empatico',
+    '- Codigos como identificadores (AL-001 etc.)',
+    '- 800-1000 palabras de texto narrativo sin contar tablas'
+  ];
+  const prompt = promptParts.join('\n');
 
   try {
     const response = await fetch('https://sociograma-ai.jairomagd.workers.dev', {
@@ -1818,7 +1883,62 @@ function descargarPDF() {
   });
   if (enTabla) htmlFinal += '</table>';
 
-  const htmlCompleto = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  // Graficos descriptivos SVG para el PDF
+  const codigosG = sesion.codigos;
+  const nG = codigosG.length;
+  const posRecG = new Array(nG).fill(0);
+  const negRecG = new Array(nG).fill(0);
+  PREGUNTAS_SOCIO.forEach((p, pi) => {
+    const arr = getEleccionesPregunta(pi);
+    arr.forEach((elecs, i) => elecs.forEach(j => {
+      if (p.tipo==='pos') posRecG[j]++; else negRecG[j]++;
+    }));
+  });
+  const datosG = codigosG.map((cod,i) => ({cod, pos:posRecG[i], neg:negRecG[i], neto:posRecG[i]-negRecG[i]}));
+  const top5PosG = [...datosG].sort((a,b)=>b.pos-a.pos).slice(0,5);
+  const top5NegG = [...datosG].sort((a,b)=>b.neg-a.neg).slice(0,5);
+  const top5RiesgoG = [...datosG].sort((a,b)=>a.neto-b.neto).slice(0,5);
+  const maxValG = Math.max(...datosG.map(x=>Math.max(x.pos,x.neg)), 1);
+
+  function mkBarChart(items, titulo, colorP, colorN, maxV) {
+    const labelW=72, barMaxW=160, rowH=26, padTop=28, legH=20;
+    const svgH = padTop + items.length*rowH + legH + 10;
+    let s = '<svg width="380" height="'+svgH+'" xmlns="http://www.w3.org/2000/svg" font-family="Arial">';
+    s += '<text x="0" y="14" font-size="9" font-weight="bold" fill="#1e4080">'+titulo+'</text>';
+    items.forEach(function(item,i) {
+      const y = padTop + i*rowH;
+      const posW = Math.round((item.pos/maxV)*barMaxW);
+      const negW = Math.round((item.neg/maxV)*barMaxW);
+      s += '<text x="0" y="'+(y+10)+'" font-size="7.5" fill="#333">'+item.cod+'</text>';
+      s += '<rect x="'+labelW+'" y="'+y+'" width="'+posW+'" height="10" fill="'+colorP+'" rx="2"/>';
+      if(posW>0) s += '<text x="'+(labelW+posW+2)+'" y="'+(y+9)+'" font-size="6.5" fill="'+colorP+'">'+item.pos+'</text>';
+      s += '<rect x="'+labelW+'" y="'+(y+12)+'" width="'+negW+'" height="10" fill="'+colorN+'" rx="2"/>';
+      if(negW>0) s += '<text x="'+(labelW+negW+2)+'" y="'+(y+21)+'" font-size="6.5" fill="'+colorN+'">'+item.neg+'</text>';
+    });
+    const ly = padTop + items.length*rowH + 6;
+    s += '<rect x="'+labelW+'" y="'+ly+'" width="10" height="7" fill="'+colorP+'"/>';
+    s += '<text x="'+(labelW+13)+'" y="'+(ly+7)+'" font-size="6.5" fill="#555">Positivos</text>';
+    s += '<rect x="'+(labelW+70)+'" y="'+ly+'" width="10" height="7" fill="'+colorN+'"/>';
+    s += '<text x="'+(labelW+83)+'" y="'+(ly+7)+'" font-size="6.5" fill="#555">Negativos</text>';
+    s += '</svg>';
+    return s;
+  }
+
+  const svgAcept = mkBarChart(top5PosG,'Top 5 Mayor aceptacion','#1a6e1a','#b71c1c',maxValG);
+  const svgRechazo = mkBarChart(top5NegG,'Top 5 Mayor rechazo','#1a6e1a','#b71c1c',maxValG);
+  const svgRiesgo = mkBarChart(top5RiesgoG,'Top 5 Riesgo exclusion (neto mas bajo)','#1a6e1a','#b71c1c',maxValG);
+
+  const graficosHTML = '<div style="page-break-before:always;padding-top:10pt;">'
+    + '<h2 style="font-family:Arial;font-size:12pt;font-weight:bold;color:#1e4080;margin:0 0 14pt;padding-bottom:3pt;border-bottom:1px solid #4472C4;">GRAFICOS DESCRIPTIVOS</h2>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14pt;">'
+    + '<div>'+svgAcept+'</div>'
+    + '<div>'+svgRechazo+'</div>'
+    + '<div>'+svgRiesgo+'</div>'
+    + '</div>'
+    + '<p style="font-size:7.5pt;color:#666;margin-top:10pt;font-style:italic;">Las barras verdes representan votos positivos recibidos y las rojas los negativos acumulados en todas las preguntas sociometricas.</p>'
+    + '</div>';
+
+    const htmlCompleto = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
   <title>Informe Sociométrico ${sesionId}</title>
   <style>
     @page { size: A4; margin: 20mm 20mm 20mm 20mm; }
@@ -1837,6 +1957,7 @@ function descargarPDF() {
     <div class="cab-sub">Sesión: ${sesionId} &nbsp;·&nbsp; Fecha: ${fecha} &nbsp;·&nbsp; Alumnado: ${nAlumnos} &nbsp;·&nbsp; Departamento de Orientación</div>
   </div>
   ${htmlFinal}
+  ${graficosHTML}
   </body></html>`;
 
   const ventana = window.open('', '_blank');
