@@ -890,7 +890,13 @@ textarea { resize: vertical; min-height: 60px; }
         </div>
       </div>
       <div id="informe-output" style="display:none;"></div>
-    </div>
+    <!-- Contenedor oculto para generar las gráficas del anexo -->
+<div id="charts-hidden" style="display:none;">
+    <canvas id="chart-top-acept" width="600" height="300"></canvas>
+    <canvas id="chart-top-rech" width="600" height="300"></canvas>
+    <canvas id="chart-categorias" width="600" height="300"></canvas>
+    <canvas id="chart-radar" width="600" height="300"></canvas>
+</div></div>
 
     <!-- TAB COMPARAR SESIONES -->
     <div class="tab-panel" id="tp-comparar">
@@ -1052,6 +1058,122 @@ const PREGUNTAS_ROLES = [
 ];
 
 const NUM_ELEC = 3;
+// ======================================================
+// BLOQUE 1 — CALCULOS SOCIOMÉTRICOS OPTIMIZADOS
+// ======================================================
+
+// Devuelve array de elecciones por pregunta
+function getArr(pregIdx) {
+    const id = PREGUNTAS_SOCIO[pregIdx].id;
+    return sesion.codigos.map(cod => {
+        const r = respuestas[cod];
+        return r && r[id] ? r[id].elecciones || [] : [];
+    });
+}
+
+// Recibidas
+function getRec(arr) {
+    const n = arr.length;
+    const rec = new Array(n).fill(0);
+    arr.forEach( (elecs,i) => {
+        elecs.forEach(j => { if(j>=0 && j<n) rec[j]++; });
+    });
+    return rec;
+}
+
+// Totales por alumno
+function calcTotales() {
+    const n = sesion.codigos.length;
+    const posRec = new Array(n).fill(0);
+    const negRec = new Array(n).fill(0);
+    const posEm = new Array(n).fill(0);
+    const negEm = new Array(n).fill(0);
+
+    PREGUNTAS_SOCIO.forEach((p, pi) => {
+        const arr = getArr(pi);
+        const recibidas = getRec(arr);
+
+        recibidas.forEach((v,i) => {
+            if (p.tipo === 'pos') posRec[i]+=v; else negRec[i]+=v;
+        });
+
+        arr.forEach((elecs,i)=>{
+            if (p.tipo === 'pos') posEm[i]+=elecs.length;
+            else negEm[i]+=elecs.length;
+        });
+    });
+
+    return { posRec, negRec, posEm, negEm };
+}
+
+// Índice neto por alumno
+function calcNeto(i, posRec, negRec) {
+    return posRec[i] - negRec[i];
+}
+// ======================================================
+// BLOQUE 2 — AUXILIARES + SUBGRUPOS + CATEGORÍAS
+// ======================================================
+
+// Categorizar alumno (versión optimizada)
+function catAlumno(i, posRec, negRec, n) {
+    const neto = posRec[i] - negRec[i];
+    if (posRec[i] >= n*0.2 && neto > 2) return {label:'Estrella social', color:'#3fb950'};
+    if (negRec[i] >= n*0.2 && neto < -2) return {label:'Rechazado', color:'#f85149'};
+    if (posRec[i]===0 && negRec[i]===0) return {label:'Aislado', color:'#7d8590'};
+    if (neto < -1 && negRec[i] > posRec[i]) return {label:'En riesgo', color:'#d29922'};
+    if (neto > 1) return {label:'Bien integrado', color:'#58a6ff'};
+    return {label:'Posición media', color:'#bc8cff'};
+}
+
+// Top aceptación
+function calcularTopAceptacion() {
+    const {posRec,negRec} = calcTotales();
+    return sesion.codigos.map((cod,i)=>({
+        cod, posRec:posRec[i], negRec:negRec[i]
+    })).sort((a,b)=>b.posRec-a.posRec).slice(0,5);
+}
+
+// Top rechazo
+function calcularTopRechazo() {
+    const {posRec,negRec} = calcTotales();
+    return sesion.codigos.map((cod,i)=>({
+        cod, posRec:posRec[i], negRec:negRec[i]
+    })).sort((a,b)=>b.negRec-a.negRec).slice(0,5);
+}
+
+// Contar categorías globales
+function contarCategorias() {
+    const {posRec,negRec} = calcTotales();
+    const cats = {};
+    const n = sesion.codigos.length;
+    sesion.codigos.forEach((cod,i)=>{
+        const c = catAlumno(i,posRec,negRec,n).label;
+        cats[c] = (cats[c]||0)+1;
+    });
+    return cats;
+}
+
+// Perfil sociométrico global
+function calcularPerfilGlobal() {
+    const {posRec,negRec,posEm,negEm} = calcTotales();
+    const arrTL = getArr(0);
+    let recip = 0;
+    arrTL.forEach((elecs,i)=>elecs.forEach(j=>{ if(arrTL[j]?.includes(i)) recip++;}));
+    recip = recip/2;
+
+    const totalElec = arrTL.reduce((a,e)=>a+e.length,0);
+    const n = sesion.codigos.length;
+    const densidad = Math.round( (totalElec / (n*(n-1))) * 100 );
+
+    return {
+        tl_pos: posRec.reduce((a,b)=>a+b,0),
+        tl_neg: negRec.reduce((a,b)=>a+b,0),
+        tg_pos: posEm.reduce((a,b)=>a+b,0),
+        tg_neg: negEm.reduce((a,b)=>a+b,0),
+        recip,
+        densidad
+    };
+}
 
 // ══════════════════════════════════════════════════════════════════
 // ESTADO GLOBAL
@@ -1626,10 +1748,15 @@ async function generarInforme() {
     btn.innerHTML = '<span class="spinner"></span> Analizando datos...';
 
     const output = document.getElementById('informe-output');
-    output.style.display = 'block';
-    output.innerHTML = '<span style="color:var(--muted);">Generando informe...</span>';
+    // Limpieza total del contenedor ANTES de generar
+output.style.display = "none";
+output.innerHTML = "";
+output.removeAttribute("style");
 
-    // ============================================================
+// Ahora sí: mostrar mensaje temporal
+output.style.display = "block";
+output.innerHTML = '<span style="color:var(--muted);">Generando informe...</span>';
+        // ============================================================
     //  1. RECOGER TODAS LAS MÉTRICAS NECESARIAS
     // ============================================================
 
@@ -1812,15 +1939,25 @@ Alumno/a | Trab.(+) | Trab.(-) | Ocio(+) | Ocio(-)
 5. RECOMENDACIÓN:
 2–3 frases breves, realistas, profesionales, sin listas.
 
-ANEXO ESTADÍSTICO:
-Incluye:
-- Densidad total de la red: ${densidad}%
-- Elecciones recíprocas: ${recip}
-- Participación: ${totalRespondidos} de ${n} alumnos
-- Top 5 aceptación
-- Top 5 rechazo
-- Top 5 menor aceptación
-Todo en formato claramente legible, con saltos de línea y estilo técnico.
+ANEXO ESTADÍSTICO (interpretación):
+Redacta un análisis profesional que explique los indicadores globales del grupo:
+- cohesión general (densidad ${densidad}%)
+- reciprocidad (${recip} vínculos mutuos)
+- distribución de la aceptación y rechazo
+- existencia de aislamiento
+- estabilidad o fragmentación de subgrupos
+
+INSTRUCCIONES:
+NO generes tablas.
+NO generes gráficos.
+NO generes diagramas ASCII.
+NO intentes hacer columnas.
+NO muestres datos numéricos en formato tabular.
+
+Redacta únicamente interpretación sociométrica
+en tono mixto (técnico + docente), clara y breve.
+
+Las figuras estadísticas reales serán añadidas por la aplicación.
 
 INSTRUCCIONES DE FORMATO:
 - Sin negritas, sin cursivas, sin markdown.
@@ -1872,145 +2009,139 @@ INSTRUCCIONES DE FORMATO:
 //// ============================================================
 //// === NUEVA FUNCIÓN PARA DESCARGAR EL INFORME COMO PDF =======
 //// ============================================================
+// ======================================================
+// BLOQUE 4 — PDF PROFESIONAL CON GRÁFICAS
+// ======================================================
+/* === BLOQUE DE GRAFICAS DEL ANEXO === */
+async function generarGraficasEstadisticas() {
 
-function descargarPDF() {
+    const topAcept = calcularTopAceptacion();
+    const topRech = calcularTopRechazo();
+    const categorias = contarCategorias();
+    const perfil = calcularPerfilGlobal();
+
+    // 1 — Bar Aceptación
+    const c1 = document.getElementById('chart-top-acept').getContext('2d');
+    new Chart(c1,{
+        type:'bar',
+        data:{
+            labels: topAcept.map(x=>x.cod),
+            datasets:[{
+                data: topAcept.map(x=>x.posRec),
+                backgroundColor:'rgba(63,185,80,0.7)'
+            }]
+        },
+        options:{ indexAxis:'y' }
+    });
+
+    // 2 — Bar Rechazo
+    const c2 = document.getElementById('chart-top-rech').getContext('2d');
+    new Chart(c2,{
+        type:'bar',
+        data:{
+            labels: topRech.map(x=>x.cod),
+            datasets:[{
+                data: topRech.map(x=>x.negRec),
+                backgroundColor:'rgba(248,81,73,0.7)'
+            }]
+        },
+        options:{ indexAxis:'y' }
+    });
+
+    // 3 — Donut categorías
+    const c3 = document.getElementById('chart-categorias').getContext('2d');
+    new Chart(c3,{
+        type:'doughnut',
+        data:{
+            labels:Object.keys(categorias),
+            datasets:[{
+                data:Object.values(categorias)
+            }]
+        }
+    });
+
+    // 4 — Radar perfil global
+    const c4 = document.getElementById('chart-radar').getContext('2d');
+    new Chart(c4,{
+        type:'radar',
+        data:{
+            labels:['Aceptación TL+','Rechazo TL−','TG+','TG−','Reciprocidad','Densidad'],
+            datasets:[{
+                label:'Perfil sociométrico',
+                data:[
+                    perfil.tl_pos,
+                    perfil.tl_neg,
+                    perfil.tg_pos,
+                    perfil.tg_neg,
+                    perfil.recip,
+                    perfil.densidad
+                ]
+            }]
+        }
+    });
+
+    // Esperar a que se dibujen
+    await new Promise(r=>setTimeout(r,300));
+
+    // Devolver imágenes PNG base64
+    return {
+        acept: document.getElementById('chart-top-acept').toDataURL('image/png'),
+        rech:  document.getElementById('chart-top-rech').toDataURL('image/png'),
+        cat:   document.getElementById('chart-categorias').toDataURL('image/png'),
+        radar: document.getElementById('chart-radar').toDataURL('image/png')
+    };
+}
+/* === FIN BLOQUE DE GRAFICAS === */
+async function descargarPDF() {
+
     if (!informeTexto) return;
+    const charts = await generarGraficasEstadisticas();
 
-    const fecha = new Date().toLocaleDateString("es-ES");
-    const sesionId = sesion ? sesion.id : "";
-    const nAlumnos = sesion ? sesion.codigos.length : 0;
+    const fecha = new Date().toLocaleDateString('es-ES');
+    const sid = sesion?.id || '';
 
-    // Convertir el informe en HTML limpio para PDF
-    const htmlBody = informeTexto
-        .split("\n")
-        .map(line => {
-            if (line.trim() === "") {
-                return `<div style="height:8px"></div>`;
-            }
+    const v = window.open('','_blank');
 
-            // Detectar títulos (estilo del informe Word)
-            const esTitulo =
-                line === line.toUpperCase() &&
-                line.endsWith(":") &&
-                line.length < 120;
-
-            if (esTitulo) {
-                return `
-                    <h2 style="
-                        font-family: Arial;
-                        font-size: 13pt;
-                        color:#1A3A5C;
-                        margin:18px 0 6px;
-                        padding-bottom:3px;
-                        border-bottom:2px solid #1A3A5C;
-                        page-break-after:avoid;">
-                        ${line.trim()}
-                    </h2>`;
-            }
-
-            // Tabla (líneas con varias columnas separadas por espacios)
-            if (line.includes("\t") || line.includes("  ")) {
-                const celdas = line.split(/\s{2,}/).map(c => c.trim());
-                return `
-                    <div style="
-                        display:flex;
-                        gap:0;
-                        border-bottom:1px solid #ccc;
-                        font-size:9pt;
-                        font-family:monospace;">
-                        ${celdas
-                        .map(
-                            c => `
-                            <div style="flex:1;padding:3px 5px;border-right:1px solid #ccc;">
-                                ${c}
-                            </div>`
-                        )
-                        .join("")}
-                    </div>`;
-            }
-
-            // Párrafos normales
-            return `<p style="
-                font-family: Arial;
-                font-size:10pt;
-                line-height:1.6;
-                text-align: justify;
-                margin:0 0 6px;">
-                ${line}
-            </p>`;
-        })
-        .join("");
-
-    // HTML completo del PDF
     const html = `
 <!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Informe Sociométrico ${sesionId}</title>
+<html><head><meta charset="utf-8">
 <style>
-@page {
-    size: A4;
-    margin: 20mm;
-}
-body {
-    font-family: Arial, sans-serif;
-    font-size: 11pt;
-    color: #222;
-    margin: 0;
-    padding: 0;
-}
-h1 {
-    color: #1A3A5C;
-    font-size: 18pt;
-    margin-bottom: 4px;
-    border-bottom: 3px solid #1A3A5C;
-    padding-bottom: 6px;
-}
-.header-info {
-    font-size: 9pt;
-    color: #555;
-    margin-bottom: 20px;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 8px 0;
-}
-th {
-    background: #dce6f1;
-    font-size: 9pt;
-    font-weight: bold;
-    border: 1px solid #999;
-    padding: 4px 6px;
-}
-td {
-    font-size: 9pt;
-    border: 1px solid #ccc;
-    padding: 4px 6px;
-}
+@page{size:A4;margin:20mm;}
+body{font-family:Arial;font-size:11pt;color:#222;}
+h1{color:#1A3A5C;border-bottom:3px solid #1A3A5C;padding-bottom:4px;}
+h2{color:#1A3A5C;margin-top:22px;border-bottom:1px solid #999;}
+img{max-width:600px;}
+.page-break{page-break-before:always;}
 </style>
 </head>
 <body>
 
-<h1>INFORME SOCIOMÉTRICO</h1>
-<div class="header-info">
-    Sesión: ${sesionId} · Fecha: ${fecha} · Alumnado: ${nAlumnos} · Departamento de Orientación
-</div>
+<h1>Informe Sociométrico</h1>
+<div>Sesión: ${sid} · Fecha: ${fecha} · Alumnado: ${sesion.codigos.length}</div>
 
-${htmlBody}
+${informeTexto.split("\n").map(x=>`<p>${x}</p>`).join("")}
 
-</body>
-</html>
-`;
+<div class="page-break"></div>
 
-    // Abrir en nueva pestaña para imprimir/guardar como PDF
-    const v = window.open("", "_blank");
+<h1>Anexo Estadístico</h1>
+
+<h2>Top 5 Aceptación</h2>
+${charts.acept}
+
+<h2>Top 5 Rechazo</h2>
+${charts.rech}
+
+<h2>Distribución de Categorías</h2>
+${charts.cat}
+
+<h2>Perfil Sociométrico Global</h2>
+${charts.radar}
+
+</body></html>`;
+
     v.document.write(html);
     v.document.close();
-
-    // Dar un poco de tiempo antes de forzar diálogo de impresión
-    setTimeout(() => v.print(), 600);
+    setTimeout(()=>v.print(),400);
 }
 
 //// ============================================================
