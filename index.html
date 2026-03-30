@@ -1094,7 +1094,7 @@ function buildCodesGrid() {
   }
 }
 
-buildCodesGrid();
+
 
 function getCodigos() {
   const n = parseInt(document.getElementById('p-num-alumnos').value);
@@ -1266,7 +1266,7 @@ async function resetSesion() {
   document.getElementById('card-sesion-activa').style.display = 'none';
   document.getElementById('profe-status').style.display = 'none';
   switchModoProfe('nueva');
-  buildCodesGrid();
+  
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1619,378 +1619,405 @@ function renderMatriz() {
 // INFORME IA
 // ══════════════════════════════════════════════════════════════════
 async function generarInforme() {
-  if (!sesion) return;
-  const btn = document.getElementById('btn-generar-informe');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Analizando datos...';
-  const output = document.getElementById('informe-output');
-  output.style.display = 'block';
-  output.innerHTML = '<span style="color:var(--muted);">Generando informe...</span>';
+    if (!sesion) return;
 
-  const codigos = sesion.codigos;
-  const n = codigos.length;
-  const totalRespondidos = Object.keys(respuestas).length;
+    const btn = document.getElementById('btn-generar-informe');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Analizando datos...';
 
-  // Calcular estadísticos completos
-  const posRec = new Array(n).fill(0);
-  const negRec = new Array(n).fill(0);
-  const posEm = new Array(n).fill(0);
-  const negEm = new Array(n).fill(0);
+    const output = document.getElementById('informe-output');
+    output.style.display = 'block';
+    output.innerHTML = '<span style="color:var(--muted);">Generando informe...</span>';
 
-  PREGUNTAS_SOCIO.forEach((p, pi) => {
-    const arr = getEleccionesPregunta(pi);
-    arr.forEach((elecs, i) => {
-      if (p.tipo === 'pos') posEm[i] += elecs.length;
-      else negEm[i] += elecs.length;
-      elecs.forEach(j => { if (p.tipo==='pos') posRec[j]++; else negRec[j]++; });
+    // ============================================================
+    //  1. RECOGER TODAS LAS MÉTRICAS NECESARIAS
+    // ============================================================
+
+    const codigos = sesion.codigos;
+    const n = codigos.length;
+    const totalRespondidos = Object.keys(respuestas).length;
+
+    // Inicializar estadísticos
+    const posRec = new Array(n).fill(0);
+    const negRec = new Array(n).fill(0);
+    const posEm = new Array(n).fill(0);
+    const negEm = new Array(n).fill(0);
+
+    // Recorrer 4 preguntas sociométricas
+    PREGUNTAS_SOCIO.forEach((preg, pi) => {
+        const arr = getEleccionesPregunta(pi);
+
+        arr.forEach((elecs, i) => {
+            if (preg.tipo === "pos") posEm[i] += elecs.length;
+            else negEm[i] += elecs.length;
+
+            elecs.forEach(j => {
+                if (preg.tipo === "pos") posRec[j]++;
+                else negRec[j]++;
+            });
+        });
     });
-  });
 
-  const netos = codigos.map((_, i) => posRec[i] - negRec[i]);
-  const cats = codigos.map((_, i) => categorizarAlumno(netos[i], posRec[i], negRec[i], n));
-  const catCount = {};
-  cats.forEach(c => { catCount[c.label] = (catCount[c.label]||0)+1; });
+    const netos = codigos.map((_, i) => posRec[i] - negRec[i]);
 
-  const sorted = codigos.map((cod,i)=>({cod,i,posRec:posRec[i],negRec:negRec[i],neto:netos[i],cat:cats[i].label}))
-    .sort((a,b)=>b.neto-a.neto);
-  const top3pos = sorted.slice(0,3);
-  const top3neg = [...sorted].sort((a,b)=>b.negRec-a.negRec).slice(0,3);
-  const enRiesgo = sorted.filter(x=>x.cat==='En riesgo'||x.cat==='Rechazado/a'||x.cat==='Aislado/a').slice(0,3);
+    // Extraer justificaciones por persona
+    const justific = {};
+    codigos.forEach(cod => justific[cod] = []);
 
-  // Justificaciones por código
-  const justPorCodigo = {};
-  codigos.forEach(cod => {
-    const r = respuestas[cod];
-    if (!r) return;
-    PREGUNTAS_SOCIO.forEach(p => {
-      const data = r[p.id];
-      if (!data) return;
-      (data.elecciones||[]).forEach((j,ei) => {
-        const elegido = codigos[j];
-        if (!elegido) return;
-        if (!justPorCodigo[elegido]) justPorCodigo[elegido] = [];
-        const just = ((data.justificaciones||[])[ei]||'').trim();
-        if (just) justPorCodigo[elegido].push({ tipo: p.tipo, texto: just });
-      });
+    codigos.forEach((cod, i) => {
+        const r = respuestas[cod];
+        if (!r) return;
+
+        PREGUNTAS_SOCIO.forEach(p => {
+            const data = r[p.id];
+            if (!data) return;
+
+            const elecs = data.elecciones || [];
+            const justs = data.justificaciones || [];
+
+            elecs.forEach((j, k) => {
+                const target = codigos[j];
+                if (!target) return;
+                const texto = (justs[k] || "").trim();
+                if (texto) justific[target].push({ tipo: p.tipo, texto });
+            });
+        });
     });
-  });
 
-  // Cohesión general
-  const arrPos0 = getEleccionesPregunta(0);
-  let totalRecip=0;
-  arrPos0.forEach((elecs,i)=>elecs.forEach(j=>{if((arrPos0[j]||[]).includes(i))totalRecip++;}));
-  totalRecip=totalRecip/2;
-  const densidad = Math.round((arrPos0.reduce((s,e)=>s+e.length,0)/(n*(n-1)))*100);
+    // Construcción de ranking
+    const alumnos = codigos.map((cod, i) => ({
+        cod,
+        posRec: posRec[i],
+        negRec: negRec[i],
+        neto: netos[i],
+        justific: justific[cod]
+    }));
 
-  // Calcular votos por pregunta para tabla resumen
-  const votosPorPregunta = PREGUNTAS_SOCIO.map((p, pi) => {
-    const arr = getEleccionesPregunta(pi);
-    const rec = getRecibidas(arr);
-    return { id: p.id, texto: p.texto, tipo: p.tipo, rec };
-  });
+    const topAcept = [...alumnos].sort((a, b) => b.posRec - a.posRec).slice(0, 3);
+    const topRech = [...alumnos].sort((a, b) => b.negRec - a.negRec).slice(0, 3);
+    const topAislamiento = [...alumnos].sort((a, b) => a.posRec - b.posRec).slice(0, 5);
 
-  const tablaResumenTexto = codigos.map((cod, i) => {
-    const fila = votosPorPregunta.map(vp => vp.rec[i]);
-    return `${cod} | ${fila.join(' | ')}`;
-  }).join('\n');
+    // Subgrupos recíprocos (tiempo libre positivo)
+    const arrTL = getEleccionesPregunta(0);
+    const visited = new Array(n).fill(false);
+    const subgrupos = [];
 
-  const cabecera = 'Código | ' + votosPorPregunta.map(vp =>
-    (vp.tipo==='pos'?'(+)':'(-)') + ' ' + vp.texto.substring(0,20)
-  ).join(' | ');
+    function bfs(start) {
+        const q = [start];
+        const g = [start];
+        visited[start] = true;
 
-  // Calcular top 5 por categoria para el prompt
-  const top5aceptacion = [...sorted].slice(0,5);
-  const top5rechazo = [...sorted].sort((a,b)=>b.negRec-a.negRec).slice(0,5);
-  const top5riesgo = [...sorted].sort((a,b)=>a.neto-b.neto).slice(0,5);
-
-  // Calcular subgrupos para el prompt
-  const arrPos0Sg = getEleccionesPregunta(0);
-  const visitedSg = new Array(n).fill(false);
-  const subgruposSg = [];
-  const bfsSg = (s) => { const g=[],q=[s]; visitedSg[s]=true; while(q.length){const nd=q.shift();g.push(nd);for(let j=0;j<n;j++){if(!visitedSg[j]&&(arrPos0Sg[nd]||[]).includes(j)&&(arrPos0Sg[j]||[]).includes(nd)){visitedSg[j]=true;q.push(j);}}} return g; };
-  for(let i=0;i<n;i++) if(!visitedSg[i]) subgruposSg.push(bfsSg(i));
-  subgruposSg.sort((a,b)=>b.length-a.length);
-  const subgruposRealesSg = subgruposSg.filter(g=>g.length>1);
-  const aisladosSg = subgruposSg.filter(g=>g.length===1).map(g=>codigos[g[0]]);
-
-  const tablaSubgrupos = subgruposRealesSg.map((g,gi) => {
-    let recip=0, pos=g.length*(g.length-1)/2;
-    g.forEach(i=>g.forEach(j=>{if(i<j&&(arrPos0Sg[i]||[]).includes(j)&&(arrPos0Sg[j]||[]).includes(i))recip++;}));
-    const coh = pos>0?Math.round(recip/pos*100):0;
-    const obs = coh>=60?'Cohesionado, nucleo fuerte':coh>=30?'Cohesion media':'Poco cohesionado';
-    return `Subgrupo ${gi+1} | ${g.map(i=>codigos[i]).join(', ')} | ${coh}% | ${obs}`;
-  }).join('\n');
-
-  const tablaAislamiento = top5riesgo.map(x =>
-    `${x.cod} | ${x.posRec} votos (+) | ${x.negRec} votos (-) | ${x.cat}`
-  ).join('\n');
-
-  const top5AceptLines = top5aceptacion.map(function(x) {
-    const justs = (justPorCodigo[x.cod]||[]).filter(function(j){return j.tipo==='pos';}).slice(0,4).map(function(j){return '"'+j.texto+'"';}).join(', ') || 'Sin comentarios';
-    return '- '+x.cod+': '+x.posRec+' votos positivos, '+x.negRec+' negativos, neto '+(x.neto>0?'+':'')+x.neto+'\n  Dicen sus companeros: '+justs;
-  }).join('\n\n');
-
-  const top5RechazoLines = top5rechazo.map(function(x) {
-    const justsNeg = (justPorCodigo[x.cod]||[]).filter(function(j){return j.tipo==='neg';}).slice(0,4).map(function(j){return '"'+j.texto+'"';}).join(', ') || 'Sin comentarios';
-    const justsPos = (justPorCodigo[x.cod]||[]).filter(function(j){return j.tipo==='pos';}).slice(0,2).map(function(j){return '"'+j.texto+'"';}).join(', ') || 'Ninguno';
-    return '- '+x.cod+': '+x.posRec+' positivos, '+x.negRec+' negativos, neto '+(x.neto>0?'+':'')+x.neto+'\n  Comentarios negativos: '+justsNeg+'\n  Comentarios positivos: '+justsPos;
-  }).join('\n\n');
-
-  const promptParts = [
-    'Eres un orientador/a escolar experto/a en analisis sociometrico del Departamento de Orientacion. Redacta un INFORME SOCIOMETRICO PROFESIONAL en espanol, siguiendo exactamente la estructura del informe de referencia. El informe es mayoritariamente DESCRIPTIVO y analitico.',
-    '',
-    'DATOS DE LA ENCUESTA:',
-    '- Total alumnos: ' + n + ' | Respondieron: ' + totalRespondidos + ' (' + Math.round(totalRespondidos/n*100) + '%)',
-    '- Elecciones reciprocas (tiempo libre): ' + totalRecip,
-    '- Densidad de la red: ' + densidad + '%',
-    '',
-    'TOP 5 MAYOR ACEPTACION SOCIAL:',
-    top5AceptLines,
-    '',
-    'TOP 5 MAYOR RECHAZO:',
-    top5RechazoLines,
-    '',
-    'SUBGRUPOS IDENTIFICADOS:',
-    'Subgrupo | Componentes | Cohesion | Observaciones',
-    tablaSubgrupos || 'No se detectan subgrupos',
-    '',
-    'ALUMNOS SIN SUBGRUPO:',
-    aisladosSg.length ? aisladosSg.join(', ') : 'Ninguno',
-    '',
-    'TABLA RESUMEN DE VOTOS (todos los alumnos):',
-    cabecera,
-    tablaResumenTexto,
-    '',
-    'ESTRUCTURA EXACTA - USA ESTOS TITULOS EN MAYUSCULAS:',
-    '',
-    '1. INTRODUCCION Y PARTICIPACION:',
-    'Parrafo describiendo instrumento, fecha, objetivo y tasa de participacion.',
-    '',
-    '2. DINAMICA GENERAL DEL GRUPO:',
-    'Parrafo general. Luego:',
-    '',
-    '2.1. LIDERAZGO SOCIAL:',
-    'Los 3 mas aceptados. Tabla: Alumno/a | Votos positivos | Razones destacadas. Frase final en cursiva sobre su rol como referentes.',
-    '',
-    '2.2. SUBGRUPOS IDENTIFICADOS:',
-    'Parrafo introductorio. Tabla: Subgrupo | Componentes | Densidad | Observaciones. Si hay diada cerrada, mencionarla.',
-    '',
-    '2.3. AISLAMIENTO Y RECHAZO:',
-    'Parrafo sobre alumnos con menos votos positivos. Tabla: Alumno/a | Votos ocio (+) | Valoracion con los 5 de menor aceptacion. Parrafo final sobre los 3 con mas nominaciones negativas.',
-    '',
-    '3. ANALISIS CUALITATIVO DE LOS CASOS MAS RELEVANTES:',
-    '',
-    '3.1. PERFILES DE ALTA ACEPTACION:',
-    'Un parrafo por cada uno de los 3 mas aceptados. Codigo como encabezado. Justificaciones literales entre comillas.',
-    '',
-    '3.2. PERFILES CON DIFICULTADES DE INTEGRACION:',
-    'Un parrafo por cada uno de los 3 con mas rechazo. Codigo como encabezado. Datos concretos de votos en trabajo y ocio. Justificaciones entre comillas. Analisis estructural.',
-    '',
-    '4. TABLA RESUMEN DE VOTOS:',
-    'Tabla completa: Alumno/a | Trab.(+) | Trab.(-) | Ocio(+) | Ocio(-). Nota al pie sobre filas con mas nominaciones negativas.',
-    '',
-    '5. RECOMENDACION:',
-    'Maximo 2-3 frases muy concretas y breves. Sin listas.',
-    '',
-    'NORMAS ABSOLUTAS:',
-    '- Texto plano sin asteriscos ni markdown',
-    '- Tablas con columnas separadas por |',
-    '- Titulos en MAYUSCULAS seguidos de dos puntos',
-    '- Tono tecnico, profesional, empatico',
-    '- Codigos como identificadores (AL-001 etc.)',
-    '- 800-1000 palabras de texto narrativo sin contar tablas'
-  ];
-  const prompt = promptParts.join('\n');
-
-  try {
-    const response = await fetch('https://sociograma-ai.jairomagd.workers.dev', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 4000, temperature: 0.7 }
-      })
-    });
-    const data = await response.json();
-    informeTexto = data.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || 'No se pudo generar el informe.';
-
-    // Renderizar con secciones destacadas y tabla
-    let enTabla = false;
-    output.innerHTML = informeTexto.split('\n').map(line => {
-      const isTitle = /^[A-ZÁÉÍÓÚÑ\s]{5,}:/.test(line.trim()) && line.trim().length < 80;
-      const isTablaTitle = /TABLA RESUMEN/i.test(line.trim());
-      const isTablaRow = line.includes('|') && line.trim().length > 3;
-
-      if (isTitle) {
-        enTabla = isTablaTitle;
-        return `<div style="font-family:'Fraunces',serif;font-size:1rem;font-weight:700;color:var(--blue);margin-top:22px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${line}</div>`;
-      }
-      if (line.trim()==='') return '<div style="height:6px;"></div>';
-      if (isTablaRow) {
-        const cells = line.split('|').map(c => c.trim());
-        const isHeader = cells[0].toUpperCase() === cells[0] && cells[0].includes('CÓDIGO') || cells[0].includes('Código') || /^[A-Z]{2}-/.test(cells[0]) === false && cells.some(c=>/\(\+\)|\(\-\)/.test(c));
-        return `<div style="display:flex;gap:0;font-family:monospace;font-size:0.72rem;border-bottom:1px solid var(--border);${isHeader?'background:var(--surface2);font-weight:700;':''}">
-          ${cells.map((c,ci) => `<span style="flex:${ci===0?'1.5':'1'};padding:4px 6px;border-right:1px solid var(--border);overflow:hidden;">${c}</span>`).join('')}
-        </div>`;
-      }
-      return `<p style="margin-bottom:8px;line-height:1.75;">${line}</p>`;
-    }).join('');
-
-    document.getElementById('btn-pdf').style.display = 'inline-flex';
-    document.getElementById('btn-docx').style.display = 'inline-flex';
-  } catch(e) {
-    output.innerHTML = '<span style="color:var(--red);">Error al generar el informe. Verifica la conexión e inténtalo de nuevo.</span>';
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = '✨ Regenerar informe';
-}
-
-function descargarPDF() {
-  if (!informeTexto) return;
-  const fecha = new Date().toLocaleDateString('es-ES');
-  const sesionId = sesion ? sesion.id : '';
-  const nAlumnos = sesion ? sesion.codigos.length : 0;
-
-  // Calcular datos para graficos
-  const codigosG = sesion ? sesion.codigos : [];
-  const nG = codigosG.length;
-  const posRecG = new Array(nG).fill(0);
-  const negRecG = new Array(nG).fill(0);
-  PREGUNTAS_SOCIO.forEach(function(p, pi) {
-    const arr = getEleccionesPregunta(pi);
-    arr.forEach(function(elecs, i) {
-      elecs.forEach(function(j) {
-        if (p.tipo==='pos') posRecG[j]++; else negRecG[j]++;
-      });
-    });
-  });
-  const datosG = codigosG.map(function(cod,i){ return {cod:cod, pos:posRecG[i], neg:negRecG[i], neto:posRecG[i]-negRecG[i]}; });
-  const top5PosG = datosG.slice().sort(function(a,b){return b.pos-a.pos;}).slice(0,5);
-  const top5NegG = datosG.slice().sort(function(a,b){return b.neg-a.neg;}).slice(0,5);
-  const top5RiesgoG = datosG.slice().sort(function(a,b){return a.neto-b.neto;}).slice(0,5);
-  const maxValG = Math.max.apply(null, datosG.map(function(x){return Math.max(x.pos,x.neg);})) || 1;
-
-  function mkChart(items, titulo, cPos, cNeg, maxV) {
-    const canvas = document.createElement('canvas');
-    const rowH=32, padTop=30, labelW=72, barMaxW=200, padRight=50;
-    canvas.width = 420;
-    canvas.height = padTop + items.length*rowH + 36;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle='#1e4080'; ctx.font='bold 10px Arial';
-    ctx.fillText(titulo, 0, 16);
-    items.forEach(function(item,i) {
-      const y = padTop + i*rowH;
-      const posW = maxV>0 ? Math.round((item.pos/maxV)*barMaxW) : 0;
-      const negW = maxV>0 ? Math.round((item.neg/maxV)*barMaxW) : 0;
-      ctx.fillStyle='#333'; ctx.font='8.5px Arial';
-      ctx.fillText(item.cod, 0, y+11);
-      ctx.fillStyle=cPos; ctx.fillRect(labelW, y, posW||2, 11);
-      ctx.fillStyle=cPos; ctx.font='7.5px Arial';
-      ctx.fillText(item.pos, labelW+(posW||2)+3, y+10);
-      ctx.fillStyle=cNeg; ctx.fillRect(labelW, y+13, negW||2, 11);
-      ctx.fillStyle=cNeg;
-      ctx.fillText(item.neg, labelW+(negW||2)+3, y+22);
-    });
-    const ly = padTop + items.length*rowH + 8;
-    ctx.fillStyle=cPos; ctx.fillRect(labelW, ly, 11, 8);
-    ctx.fillStyle='#555'; ctx.font='7.5px Arial'; ctx.fillText('Positivos', labelW+14, ly+8);
-    ctx.fillStyle=cNeg; ctx.fillRect(labelW+75, ly, 11, 8);
-    ctx.fillText('Negativos', labelW+89, ly+8);
-    return canvas.toDataURL('image/png');
-  }
-
-  const imgA = mkChart(top5PosG,'Top 5 - Mayor aceptacion','#1a6e1a','#b71c1c',maxValG);
-  const imgR = mkChart(top5NegG,'Top 5 - Mayor rechazo','#1a6e1a','#b71c1c',maxValG);
-  const imgX = mkChart(top5RiesgoG,'Top 5 - Riesgo exclusion','#1a6e1a','#b71c1c',maxValG);
-
-  // Convertir texto del informe a HTML limpio
-  function textoAHtml(texto) {
-    const lineas = texto.split('\n');
-    let html = '';
-    let enTabla = false;
-    let bufTabla = '';
-
-    function cerrarTabla() {
-      if (!enTabla) return;
-      html += '<table>' + bufTabla + '</table>';
-      bufTabla = ''; enTabla = false;
+        while (q.length) {
+            const u = q.shift();
+            for (let j = 0; j < n; j++) {
+                const rec = arrTL[u].includes(j) && arrTL[j].includes(u);
+                if (rec && !visited[j]) {
+                    visited[j] = true;
+                    g.push(j);
+                    q.push(j);
+                }
+            }
+        }
+        return g;
     }
 
-    lineas.forEach(function(linea) {
-      const trim = linea.trim();
-      if (trim === '') { cerrarTabla(); html += '<div class="sep"></div>'; return; }
+    for (let i = 0; i < n; i++) {
+        if (!visited[i]) subgrupos.push(bfs(i));
+    }
 
-      // Detectar titulo: empieza por numero o letras mayusculas seguidas de ':'
-      const esTitle = /^(\d+[\.\d]*\s+)?[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\.\d]{3,}:/.test(trim) && trim.length < 120 && trim === trim.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ\s\d\.\:]/g,'') ? false : /^(\d+[\.\d]*\.?\s+)?[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\.\d]{3,}:$/.test(trim) || (/^(\d+[\.\d]*\.?\s+)?[A-ZÁÉÍÓÚÑ]{2}[A-ZÁÉÍÓÚÑ\s\.\d]*:/.test(trim) && trim.length < 80 && !trim.includes(',') && trim === trim.toUpperCase().replace(/[áéíóúñ]/gi, function(m){return m;}) ? true : false);
+    const gruposReales = subgrupos.filter(g => g.length > 1);
+    const aislados = subgrupos.filter(g => g.length === 1).map(g => codigos[g[0]]);
 
-      // Deteccion mas simple y robusta de titulos
-      const esTituloSimple = trim.length < 90 && trim.endsWith(':') && /^[\d\.\s]*[A-ZÁÉÍÓÚÑ]/.test(trim) && trim.split(' ').filter(function(w){return w.length>2;}).every(function(w){return w[0]===w[0].toUpperCase();});
+    // Densidad TL positivo
+    const totalEnlaces = arrTL.reduce((s, e) => s + e.length, 0);
+    const densidad = Math.round(totalEnlaces / (n * (n - 1)) * 100);
 
-      const esFilaTabla = trim.includes('|') && trim.split('|').length >= 2;
+    // Recíprocas
+    let recip = 0;
+    arrTL.forEach((elecs, i) =>
+        elecs.forEach(j => {
+            if (arrTL[j].includes(i)) recip++;
+        })
+    );
+    recip = Math.round(recip / 2);
 
-      if (esTituloSimple) {
-        cerrarTabla();
-        html += '<h2>' + trim + '</h2>';
-      } else if (esFilaTabla) {
-        const celdas = trim.split('|').map(function(c){return c.trim();});
-        const esHeader = celdas.some(function(c){return /Votos|Alumno|Subgrupo|Trab|Ocio|Componentes|Posit|Negat/.test(c);});
-        const td = esHeader ? 'th' : 'td';
-        bufTabla += '<tr>' + celdas.map(function(c){return '<'+td+'>'+c+'</'+td+'>';}).join('') + '</tr>';
-        enTabla = true;
-      } else {
-        cerrarTabla();
-        html += '<p>' + trim + '</p>';
-      }
-    });
-    cerrarTabla();
-    return html;
-  }
+    // Tabla resumen de votos
+    const tablaResumen = alumnos
+        .map(a => {
+            return `${a.cod}
+${posRec[a.codigos]}`
+        });
 
-  const htmlInforme = textoAHtml(informeTexto);
-  const htmlGraficos = '<div class="pgbreak">'
-    + '<h2>GRAFICOS DESCRIPTIVOS</h2>'
-    + '<div class="grid3">'
-    + '<div><img src="'+imgA+'" style="width:100%"/></div>'
-    + '<div><img src="'+imgR+'" style="width:100%"/></div>'
-    + '<div><img src="'+imgX+'" style="width:100%"/></div>'
-    + '</div>'
-    + '<p class="nota">Barras verdes: votos positivos recibidos. Barras rojas: votos negativos. Total acumulado de todas las preguntas sociometricas.</p>'
-    + '</div>';
+    // ============================================================
+    //  2. PROMPT PROFESIONAL (ESTILO EXACTO DEL INFORME .DOCX)
+    //     — optimizado para Gemini 2.5 Flash
+    // ============================================================
 
-  const htmlCompleto = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-    + '<title>Informe Sociometrico ' + sesionId + '</title>'
-    + '<style>'
-    + '@page{size:A4;margin:18mm 20mm 18mm 20mm}'
-    + 'body{font-family:Arial,sans-serif;font-size:10pt;color:#222;margin:0;padding:0}'
-    + '.cab{border-bottom:3px solid #1e4080;padding-bottom:8pt;margin-bottom:14pt}'
-    + '.cab-t{font-size:15pt;font-weight:bold;color:#1e4080}'
-    + '.cab-s{font-size:8.5pt;color:#666;margin-top:3pt}'
-    + 'h2{font-family:Arial;font-size:11pt;font-weight:bold;color:#1e4080;margin:14pt 0 4pt;padding-bottom:2pt;border-bottom:1px solid #4472C4;page-break-after:avoid}'
-    + 'p{margin:0 0 6pt;line-height:1.55;text-align:justify}'
-    + '.sep{height:4pt}'
-    + 'table{width:100%;border-collapse:collapse;margin:6pt 0;page-break-inside:auto}'
-    + 'th{background:#dce6f1;font-size:8pt;font-weight:bold;padding:3pt 5pt;border:1px solid #999;text-align:left}'
-    + 'td{font-size:8pt;padding:3pt 5pt;border:1px solid #ccc}'
-    + 'tr{page-break-inside:avoid}'
-    + '.pgbreak{page-break-before:always;padding-top:8pt}'
-    + '.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12pt;margin-top:10pt}'
-    + '.nota{font-size:7.5pt;color:#666;font-style:italic;margin-top:8pt}'
-    + 'img{max-width:100%}'
-    + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
-    + '</style></head><body>'
-    + '<div class="cab"><div class="cab-t">INFORME SOCIOMETRICO</div>'
-    + '<div class="cab-s">Sesion: ' + sesionId + ' &nbsp;&middot;&nbsp; Fecha: ' + fecha + ' &nbsp;&middot;&nbsp; Alumnado: ' + nAlumnos + ' &nbsp;&middot;&nbsp; Departamento de Orientacion</div></div>'
-    + htmlInforme
-    + htmlGraficos
-    + '</body></html>';
+    const prompt = `
+Eres un orientador/a escolar experto/a en sociometría. 
+Redacta un **INFORME SOCIOMÉTRICO PROFESIONAL**, en español, 
+con estilo idéntico al siguiente modelo narrativo estructurado:
 
-  const v = window.open('', '_blank');
-  v.document.write(htmlCompleto);
-  v.document.close();
+SECCIONES OBLIGATORIAS (con estos nombres exactos):
+
+1. INTRODUCCIÓN Y PARTICIPACIÓN:
+Describe: fecha, finalidad del sociograma, número total de alumnos, tasa de participación (%),
+con tono institucional y objetivo.
+
+2. DINÁMICA GENERAL DEL GRUPO:
+Análisis amplio y descriptivo del funcionamiento social del grupo.
+Debe sonar muy similar al informe modelo: menciona heterogeneidad, posiciones centrales, vínculos débiles, etc.
+
+2.1. LIDERAZGO SOCIAL:
+Incluye una tabla textual con:
+Alumno/a
+Votos positivos (aprox.)
+Razones destacadas
+
+Los tres alumnos con mayor aceptación son:
+${topAcept.map(a => `- ${a.cod}: ${a.posRec} votos positivos`).join("\n")}
+
+Incluye un breve comentario cualitativo basado en justificaciones relevantes
+(de forma integrada en narrativa, NO como lista).
+
+2.2. SUBGRUPOS IDENTIFICADOS:
+Incluye una tabla textual:
+Subgrupo | Componentes | Densidad | Observaciones
+
+Basado en:
+${gruposReales.length ? gruposReales.map((g, idx) =>
+    `Subgrupo ${idx + 1}: ${g.map(i => codigos[i]).join(", ")}`).join("\n")
+    : "No se detectan subgrupos reales."
 }
 
+2.3. AISLAMIENTO Y RECHAZO:
+Describe a los alumnos con menor aceptación (top 5) y los 3 con mayor rechazo.
+Incluye una tabla textual:
+Alumno/a | Votos ocio (+) | Valoración
+
+3. ANÁLISIS CUALITATIVO DE LOS CASOS MÁS RELEVANTES:
+
+3.1. PERFILES DE ALTA ACEPTACIÓN:
+Un párrafo por cada uno de los 3 más aceptados (con su código como título):
+Incluye citas textuales de justificaciones entre comillas, integradas en texto.
+
+3.2. PERFILES CON DIFICULTADES DE INTEGRACIÓN:
+Un párrafo por cada uno de los 3 más rechazados:
+Incluye cifras concretas (trabajo +/–, ocio +/–) y citas textuales seleccionadas.
+
+4. TABLA RESUMEN DE VOTOS:
+Incluye una tabla textual con columnas:
+Alumno/a | Trab.(+) | Trab.(-) | Ocio(+) | Ocio(-)
+
+5. RECOMENDACIÓN:
+2–3 frases breves, realistas, profesionales, sin listas.
+
+ANEXO ESTADÍSTICO:
+Incluye:
+- Densidad total de la red: ${densidad}%
+- Elecciones recíprocas: ${recip}
+- Participación: ${totalRespondidos} de ${n} alumnos
+- Top 5 aceptación
+- Top 5 rechazo
+- Top 5 menor aceptación
+Todo en formato claramente legible, con saltos de línea y estilo técnico.
+
+INSTRUCCIONES DE FORMATO:
+- Sin negritas, sin cursivas, sin markdown.
+- Texto narrativo extenso (mínimo 900 palabras).
+- Tablas solo mediante filas con saltos de línea y columnas separadas por espacios o tabuladores.
+- Mantener EXACTAMENTE el estilo del informe de referencia.
+- No incluir elementos HTML.
+`;
+
+    // ============================================================
+    //  3. LLAMADA REAL A GEMINI 2.5 FLASH (tu worker Cloudflare)
+    // ============================================================
+
+    try {
+        const response = await fetch("https://sociograma-ai.jairomagd.workers.dev", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "gemini-2.5-flash",
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: { maxOutputTokens: 6500, temperature: 0.55 }
+            })
+        });
+
+        const data = await response.json();
+
+        const texto = data.candidates?.[0]?.content?.parts?.map(p => p.text).join("") ||
+                      "No se pudo generar el informe.";
+
+        informeTexto = texto;
+
+        output.innerHTML = texto
+            .split("\n")
+            .map(line => `<p style="margin-bottom:6px;line-height:1.75;">${line}</p>`)
+            .join("");
+
+        document.getElementById("btn-pdf").style.display = "inline-flex";
+        document.getElementById("btn-docx").style.display = "inline-flex";
+
+    } catch (e) {
+        output.innerHTML =
+            '<span style="color:var(--red);">Error al generar el informe. Inténtalo de nuevo.</span>';
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = "✨ Regenerar informe";
+}
+
+//// ============================================================
+//// === NUEVA FUNCIÓN PARA DESCARGAR EL INFORME COMO PDF =======
+//// ============================================================
+
+function descargarPDF() {
+    if (!informeTexto) return;
+
+    const fecha = new Date().toLocaleDateString("es-ES");
+    const sesionId = sesion ? sesion.id : "";
+    const nAlumnos = sesion ? sesion.codigos.length : 0;
+
+    // Convertir el informe en HTML limpio para PDF
+    const htmlBody = informeTexto
+        .split("\n")
+        .map(line => {
+            if (line.trim() === "") {
+                return `<div style="height:8px"></div>`;
+            }
+
+            // Detectar títulos (estilo del informe Word)
+            const esTitulo =
+                line === line.toUpperCase() &&
+                line.endsWith(":") &&
+                line.length < 120;
+
+            if (esTitulo) {
+                return `
+                    <h2 style="
+                        font-family: Arial;
+                        font-size: 13pt;
+                        color:#1A3A5C;
+                        margin:18px 0 6px;
+                        padding-bottom:3px;
+                        border-bottom:2px solid #1A3A5C;
+                        page-break-after:avoid;">
+                        ${line.trim()}
+                    </h2>`;
+            }
+
+            // Tabla (líneas con varias columnas separadas por espacios)
+            if (line.includes("\t") || line.includes("  ")) {
+                const celdas = line.split(/\s{2,}/).map(c => c.trim());
+                return `
+                    <div style="
+                        display:flex;
+                        gap:0;
+                        border-bottom:1px solid #ccc;
+                        font-size:9pt;
+                        font-family:monospace;">
+                        ${celdas
+                        .map(
+                            c => `
+                            <div style="flex:1;padding:3px 5px;border-right:1px solid #ccc;">
+                                ${c}
+                            </div>`
+                        )
+                        .join("")}
+                    </div>`;
+            }
+
+            // Párrafos normales
+            return `<p style="
+                font-family: Arial;
+                font-size:10pt;
+                line-height:1.6;
+                text-align: justify;
+                margin:0 0 6px;">
+                ${line}
+            </p>`;
+        })
+        .join("");
+
+    // HTML completo del PDF
+    const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe Sociométrico ${sesionId}</title>
+<style>
+@page {
+    size: A4;
+    margin: 20mm;
+}
+body {
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+    color: #222;
+    margin: 0;
+    padding: 0;
+}
+h1 {
+    color: #1A3A5C;
+    font-size: 18pt;
+    margin-bottom: 4px;
+    border-bottom: 3px solid #1A3A5C;
+    padding-bottom: 6px;
+}
+.header-info {
+    font-size: 9pt;
+    color: #555;
+    margin-bottom: 20px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+}
+th {
+    background: #dce6f1;
+    font-size: 9pt;
+    font-weight: bold;
+    border: 1px solid #999;
+    padding: 4px 6px;
+}
+td {
+    font-size: 9pt;
+    border: 1px solid #ccc;
+    padding: 4px 6px;
+}
+</style>
+</head>
+<body>
+
+<h1>INFORME SOCIOMÉTRICO</h1>
+<div class="header-info">
+    Sesión: ${sesionId} · Fecha: ${fecha} · Alumnado: ${nAlumnos} · Departamento de Orientación
+</div>
+
+${htmlBody}
+
+</body>
+</html>
+`;
+
+    // Abrir en nueva pestaña para imprimir/guardar como PDF
+    const v = window.open("", "_blank");
+    v.document.write(html);
+    v.document.close();
+
+    // Dar un poco de tiempo antes de forzar diálogo de impresión
+    setTimeout(() => v.print(), 600);
+}
+
+//// ============================================================
+//// === FIN NUEVA FUNCIÓN descargarPDF =========================
+//// ============================================================
+
+ 
 function descargarDOCX() {
   if (!informeTexto) return;
   const contenido = `INFORME SOCIOMÉTRICO\nSesión: ${sesion?.id||''} · Fecha: ${new Date().toLocaleDateString('es-ES')}\n\n${informeTexto}`;
