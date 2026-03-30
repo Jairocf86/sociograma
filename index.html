@@ -557,6 +557,7 @@ textarea { resize: vertical; min-height: 60px; }
   .session-code-display { font-size: 1.8rem; }
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -2081,7 +2082,7 @@ async function generarGraficasEstadisticas() {
     });
 
     // Esperar a que se dibujen
-    await new Promise(r=>setTimeout(r,300));
+    await new Promise(r=>setTimeout(r,1000));
 
     // Devolver imágenes PNG base64
     return {
