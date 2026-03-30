@@ -2138,9 +2138,27 @@ ${charts.radar}
 
 </body></html>`;
 
-    v.document.write(html);
-    v.document.close();
-    setTimeout(()=>v.print(),1200);
+  // Crear iframe oculto para impresión
+const iframe = document.createElement('iframe');
+iframe.style.position = 'fixed';
+iframe.style.right = '0';
+iframe.style.bottom = '0';
+iframe.style.width = '0';
+iframe.style.height = '0';
+iframe.style.border = '0';
+document.body.appendChild(iframe);
+
+// Insertar el HTML dentro del iframe
+iframe.contentWindow.document.open();
+iframe.contentWindow.document.write(html);
+iframe.contentWindow.document.close();
+
+// Esperar a que cargue TODO y después imprimir
+setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    document.body.removeChild(iframe);
+}, 800); 
 }
 
 //// ============================================================
