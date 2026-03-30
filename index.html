@@ -2161,7 +2161,7 @@ async function generarGraficasEstadisticas() {
 
    async function descargarPDF() {
     if (!informeTexto) return;
-    const charts = await generarGraficasEstadisticas();   // <-- ya lo tienes aquí
+    const charts = await generarGraficasEstadisticas();   // 
     const fecha = new Date().toLocaleDateString('es-ES');
     const sid = sesion?.id || '';
 
