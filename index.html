@@ -1882,95 +1882,59 @@ ${posRec[a.codigos]}`
     // ============================================================
 
     const prompt = `
-Eres un orientador/a escolar experto/a en sociometría. 
-Redacta un **INFORME SOCIOMÉTRICO PROFESIONAL**, en español, 
-con estilo idéntico al siguiente modelo narrativo estructurado:
+Eres un orientador/a escolar experto/a en sociometría. Debes elaborar un informe sociométrico claro, técnico, comprensible y bien estructurado. El tono debe ser mixto: profesional + docente, útil para equipos educativos y familias.
 
-SECCIONES OBLIGATORIAS (con estos nombres exactos):
+Estructura obligatoria:
 
-1. INTRODUCCIÓN Y PARTICIPACIÓN:
-Describe: fecha, finalidad del sociograma, número total de alumnos, tasa de participación (%),
-con tono institucional y objetivo.
+1. Introducción  
+2. Dinámica general del grupo  
+3. Liderazgo social  
+4. Subgrupos y cohesión  
+5. Aislamiento y rechazo  
+6. Análisis cualitativo de casos relevantes  
+7. Recomendaciones  
+8. ANEXO ESTADÍSTICO (interpretación)
 
-2. DINÁMICA GENERAL DEL GRUPO:
-Análisis amplio y descriptivo del funcionamiento social del grupo.
-Debe sonar muy similar al informe modelo: menciona heterogeneidad, posiciones centrales, vínculos débiles, etc.
+IMPORTANTE → FORMATO DEL INFORME:
 
-2.1. LIDERAZGO SOCIAL:
-Incluye una tabla textual con:
-Alumno/a
-Votos positivos (aprox.)
-Razones destacadas
+• NO generes tablas HTML.  
+• NO generes tablas con caracteres ASCII (|, +, ─, etc).  
+• NO generes columnas alineadas.  
+• NO generes cuadros complejos.  
+• NO uses estructuras tipo Excel.  
+• NO uses formato con sangrías o espaciados que intenten simular tablas.
 
-Los tres alumnos con mayor aceptación son:
-${topAcept.map(a => `- ${a.cod}: ${a.posRec} votos positivos`).join("\n")}
+✔ SÍ puedes generar CUADROS DESCRIPTIVOS simples en texto.  
+Los cuadros deben ser líneas independientes como estas:
 
-Incluye un breve comentario cualitativo basado en justificaciones relevantes
-(de forma integrada en narrativa, NO como lista).
+AL-001 – 11 votos positivos – Colaborador, mediador  
+AL-002 – 8 votos positivos – Sociable, buen humor  
+AL-011 – 8 votos positivos – Apoyo académico, explica bien  
 
-2.2. SUBGRUPOS IDENTIFICADOS:
-Incluye una tabla textual:
-Subgrupo | Componentes | Densidad | Observaciones
+Subgrupo 1 – AL-001, AL-002, AL-003 – Cohesión alta  
+Subgrupo 2 – AL-011, AL-012, AL-014 – Cohesión media  
 
-Basado en:
-${gruposReales.length ? gruposReales.map((g, idx) =>
-    `Subgrupo ${idx + 1}: ${g.map(i => codigos[i]).join(", ")}`).join("\n")
-    : "No se detectan subgrupos reales."
-}
+Aislamiento:  
+AL-016 – 0 elecciones positivas – Invisibilidad social  
+AL-022 – 0 elecciones positivas – Baja interacción  
 
-2.3. AISLAMIENTO Y RECHAZO:
-Describe a los alumnos con menor aceptación (top 5) y los 3 con mayor rechazo.
-Incluye una tabla textual:
-Alumno/a | Votos ocio (+) | Valoración
-
-3. ANÁLISIS CUALITATIVO DE LOS CASOS MÁS RELEVANTES:
-
-3.1. PERFILES DE ALTA ACEPTACIÓN:
-Un párrafo por cada uno de los 3 más aceptados (con su código como título):
-Incluye citas textuales de justificaciones entre comillas, integradas en texto.
-
-3.2. PERFILES CON DIFICULTADES DE INTEGRACIÓN:
-Un párrafo por cada uno de los 3 más rechazados:
-Incluye cifras concretas (trabajo +/–, ocio +/–) y citas textuales seleccionadas.
-
-4. TABLA RESUMEN DE VOTOS:
-Incluye una tabla textual con columnas:
-Alumno/a | Trab.(+) | Trab.(-) | Ocio(+) | Ocio(-)
-
-5. RECOMENDACIÓN:
-2–3 frases breves, realistas, profesionales, sin listas.
+✔ Puedes usar guiones, dos puntos, o raya larga (–) para separar campos.  
+✔ Usa párrafos cortos, claros y naturales.  
+✔ Mantén el estilo profesional.
 
 ANEXO ESTADÍSTICO (interpretación):
-Redacta un análisis profesional que explique los indicadores globales del grupo:
-- cohesión general (densidad ${densidad}%)
-- reciprocidad (${recip} vínculos mutuos)
-- distribución de la aceptación y rechazo
-- existencia de aislamiento
-- estabilidad o fragmentación de subgrupos
 
-INSTRUCCIONES:
-Puedes incluir cuadros descriptivos usando formato de texto simple, por ejemplo:
+Redacta una explicación clara y breve de:
+• Cohesión general (densidad).  
+• Reciprocidad.  
+• Equilibrio aceptación/rechazo.  
+• Aislamiento.  
+• Subgrupos y estabilidad.  
 
-Alumno/a – Votos – Comentario breve
+NO generes tablas ni gráficos en este anexo.  
+NO incluyas datos detallados aquí, solo interpretación.  
 
-pero NO generes tablas HTML, NO generes ASCII-art, NO utilices columnas, 
-NO uses caracteres de separación como | o + o tablas tipo Excel.
-
-Los cuadros deben ser líneas de texto simples separadas por saltos de línea. 
-Evita formatos complejos y cualquier estructura tabular.
-
-Redacta únicamente interpretación sociométrica
-en tono mixto (técnico + docente), clara y breve.
-
-Las figuras estadísticas reales serán añadidas por la aplicación.
-
-INSTRUCCIONES DE FORMATO:
-- Sin negritas, sin cursivas, sin markdown.
-- Texto narrativo extenso (mínimo 900 palabras).
-- Tablas solo mediante filas con saltos de línea y columnas separadas por espacios o tabuladores.
-- Mantener EXACTAMENTE el estilo del informe de referencia.
-- No incluir elementos HTML.
-`;
+Las figuras estadísticas (gráficas) serán añadidas por la aplicación fuera de este texto.
 
     // ============================================================
     //  3. LLAMADA REAL A GEMINI 2.5 FLASH (tu worker Cloudflare)
@@ -2017,15 +1981,23 @@ INSTRUCCIONES DE FORMATO:
 // ======================================================
 // BLOQUE 4 — PDF PROFESIONAL CON GRÁFICAS
 // ======================================================
-/* === BLOQUE DE GRAFICAS DEL ANEXO === */
+/* ============================
+   GRAFICAS DEL ANEXO ESTADISTICO — VERSION PRO
+   ============================ */
 async function generarGraficasEstadisticas() {
 
+    // ====== 1. DATOS SOCIOMÉTRICOS ======
     const topAcept = calcularTopAceptacion();
     const topRech = calcularTopRechazo();
     const categorias = contarCategorias();
     const perfil = calcularPerfilGlobal();
 
-    // 1 — Bar Aceptación
+    // ====== CONFIG COMÚN PARA TODO ======
+    Chart.defaults.font.size = 18;   // Tamaño global de letra
+    Chart.defaults.color = '#000';   // Color de texto
+    Chart.defaults.plugins.legend.labels.font.size = 18;
+
+    // ====== 2. BARRAS TOP ACEPTACIÓN ======
     const c1 = document.getElementById('chart-top-acept').getContext('2d');
     new Chart(c1,{
         type:'bar',
@@ -2033,13 +2005,30 @@ async function generarGraficasEstadisticas() {
             labels: topAcept.map(x=>x.cod),
             datasets:[{
                 data: topAcept.map(x=>x.posRec),
-                backgroundColor:'rgba(63,185,80,0.7)'
+                backgroundColor:'rgba(63,185,80,0.7)',
+                borderColor:'#3fb950',
+                borderWidth:2
             }]
         },
-        options:{ indexAxis:'y' }
+        options:{
+            indexAxis:'y',
+            responsive:false,
+            animation:false,
+            plugins:{
+                legend:{ display:false },
+                tooltip:{
+                    titleFont:{ size:18 },
+                    bodyFont:{ size:16 }
+                }
+            },
+            scales:{
+                x:{ ticks:{ font:{ size:18 }, color:'#000' } },
+                y:{ ticks:{ font:{ size:18 }, color:'#000' } }
+            }
+        }
     });
 
-    // 2 — Bar Rechazo
+    // ====== 3. BARRAS TOP RECHAZO ======
     const c2 = document.getElementById('chart-top-rech').getContext('2d');
     new Chart(c2,{
         type:'bar',
@@ -2047,25 +2036,64 @@ async function generarGraficasEstadisticas() {
             labels: topRech.map(x=>x.cod),
             datasets:[{
                 data: topRech.map(x=>x.negRec),
-                backgroundColor:'rgba(248,81,73,0.7)'
+                backgroundColor:'rgba(248,81,73,0.7)',
+                borderColor:'#f85149',
+                borderWidth:2
             }]
         },
-        options:{ indexAxis:'y' }
+        options:{
+            indexAxis:'y',
+            responsive:false,
+            animation:false,
+            plugins:{
+                legend:{ display:false },
+                tooltip:{
+                    titleFont:{ size:18 },
+                    bodyFont:{ size:16 }
+                }
+            },
+            scales:{
+                x:{ ticks:{ font:{ size:18 }, color:'#000' } },
+                y:{ ticks:{ font:{ size:18 }, color:'#000' } }
+            }
+        }
     });
 
-    // 3 — Donut categorías
+    // ====== 4. DONUT CATEGORÍAS ======
     const c3 = document.getElementById('chart-categorias').getContext('2d');
     new Chart(c3,{
         type:'doughnut',
         data:{
-            labels:Object.keys(categorias),
+            labels: Object.keys(categorias),
             datasets:[{
-                data:Object.values(categorias)
+                data:Object.values(categorias),
+                backgroundColor:[
+                    '#3fb950','#58a6ff','#bc8cff','#d29922','#f85149','#7d8590'
+                ],
+                borderWidth:2
             }]
+        },
+        options:{
+            responsive:false,
+            animation:false,
+            plugins:{
+                legend:{
+                    position:'right',
+                    labels:{
+                        font:{ size:18 },
+                        color:'#000',
+                        boxWidth:20
+                    }
+                },
+                tooltip:{
+                    titleFont:{ size:18 },
+                    bodyFont:{ size:16 }
+                }
+            }
         }
     });
 
-    // 4 — Radar perfil global
+    // ====== 5. RADAR PERFIL GLOBAL ======
     const c4 = document.getElementById('chart-radar').getContext('2d');
     new Chart(c4,{
         type:'radar',
@@ -2080,15 +2108,48 @@ async function generarGraficasEstadisticas() {
                     perfil.tg_neg,
                     perfil.recip,
                     perfil.densidad
-                ]
+                ],
+                backgroundColor:'rgba(88,166,255,0.3)',
+                borderColor:'#58a6ff',
+                borderWidth:3,
+                pointRadius:4,
+                pointBorderWidth:2
             }]
+        },
+        options:{
+            responsive:false,
+            animation:false,
+            plugins:{
+                legend:{
+                    labels:{ font:{ size:18 }, color:'#000' }
+                },
+                tooltip:{
+                    titleFont:{ size:18 },
+                    bodyFont:{ size:16 }
+                }
+            },
+            scales:{
+                r:{
+                    pointLabels:{ 
+                        font:{ size:18 }, 
+                        color:'#000' 
+                    },
+                    ticks:{
+                        font:{ size:14 },
+                        backdropColor:'rgba(255,255,255,0.7)',
+                        color:'#000'
+                    },
+                    grid:{ lineWidth:2 },
+                    angleLines:{ lineWidth:2 }
+                }
+            }
         }
     });
 
-    // Esperar a que se dibujen
-    await new Promise(r=>setTimeout(r,1000));
+    // ====== 6. ESPERAR QUE CHART.JS PINTE ======
+    await new Promise(r=>setTimeout(r,900));
 
-    // Devolver imágenes PNG base64
+    // ====== 7. DEVOLVER PNGS PARA INSERTAR EN EL PDF ======
     return {
         acept: document.getElementById('chart-top-acept').toDataURL('image/png'),
         rech:  document.getElementById('chart-top-rech').toDataURL('image/png'),
@@ -2096,7 +2157,7 @@ async function generarGraficasEstadisticas() {
         radar: document.getElementById('chart-radar').toDataURL('image/png')
     };
 }
-/* === FIN BLOQUE DE GRAFICAS === */
+/* === FIN GRAFICAS PRO === */
 
    async function descargarPDF() {
     if (!informeTexto) return;
