@@ -1949,11 +1949,15 @@ Redacta un análisis profesional que explique los indicadores globales del grupo
 - estabilidad o fragmentación de subgrupos
 
 INSTRUCCIONES:
-NO generes tablas.
-NO generes gráficos.
-NO generes diagramas ASCII.
-NO intentes hacer columnas.
-NO muestres datos numéricos en formato tabular.
+Puedes incluir cuadros descriptivos usando formato de texto simple, por ejemplo:
+
+Alumno/a – Votos – Comentario breve
+
+pero NO generes tablas HTML, NO generes ASCII-art, NO utilices columnas, 
+NO uses caracteres de separación como | o + o tablas tipo Excel.
+
+Los cuadros deben ser líneas de texto simples separadas por saltos de línea. 
+Evita formatos complejos y cualquier estructura tabular.
 
 Redacta únicamente interpretación sociométrica
 en tono mixto (técnico + docente), clara y breve.
@@ -2126,16 +2130,16 @@ ${informeTexto.split("\n").map(x=>`<p>${x}</p>`).join("")}
 <h1>Anexo Estadístico</h1>
 
 <h2>Top 5 Aceptación</h2>
-<img src="${charts.acept}" />
+<img src="${charts.acept}" style="max-width:420px; display:block; margin:20px auto;">
 
 <h2>Top 5 Rechazo</h2>
-<img src="${charts.rech}" />
+<img src="${charts.rech}" style="max-width:420px; display:block; margin:20px auto;">
 
 <h2>Distribución de Categorías</h2>
-<img src="${charts.cat}" />
+<img src="${charts.cat}" style="max-width:420px; display:block; margin:20px auto;">
 
 <h2>Perfil Sociométrico Global</h2>
-<img src="${charts.radar}" />
+<img src="${charts.radar}" style="max-width:420px; display:block; margin:20px auto;">
 
 
 </body></html>`;
