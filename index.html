@@ -1871,11 +1871,10 @@ output.innerHTML = '<span style="color:var(--muted);">Generando informe...</span
 
     // Tabla resumen de votos
     const tablaResumen = alumnos
-    .map((a, i) => {
-        return `${a.cod}
+        .map((a, i) => {
+            return `${a.cod}
 ${posRec[i]}`
-    });
-
+        });
     // ============================================================
     //  2. PROMPT PROFESIONAL (ESTILO EXACTO DEL INFORME .DOCX)
     //     — optimizado para Gemini 2.5 Flash
@@ -2165,7 +2164,6 @@ async function generarGraficasEstadisticas() {
     const charts = await generarGraficasEstadisticas();   // <-- ya lo tienes aquí
     const fecha = new Date().toLocaleDateString('es-ES');
     const sid = sesion?.id || '';
-    const v = window.open('', '_blank');
 
     const html = `
 <!DOCTYPE html>
