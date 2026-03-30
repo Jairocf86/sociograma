@@ -1871,10 +1871,10 @@ output.innerHTML = '<span style="color:var(--muted);">Generando informe...</span
 
     // Tabla resumen de votos
     const tablaResumen = alumnos
-        .map(a => {
-            return `${a.cod}
-${posRec[a.codigos]}`
-        });
+    .map((a, i) => {
+        return `${a.cod}
+${posRec[i]}`
+    });
 
     // ============================================================
     //  2. PROMPT PROFESIONAL (ESTILO EXACTO DEL INFORME .DOCX)
