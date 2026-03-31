@@ -887,6 +887,11 @@ textarea { resize: vertical; min-height: 60px; }
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-blue" id="btn-generar-informe" onclick="generarInforme()">✨ Generar informe</button>
           <button class="btn btn-ghost btn-sm" id="btn-pdf" onclick="descargarPDF()" style="display:none;">📄 Descargar PDF</button>
+<button class="btn btn-green btn-sm" id="btn-pdf-real"
+        onclick="descargarPDF_REAL()" style="display:none;">
+    📄 Descargar PDF REAL
+</button>
+
           <button class="btn btn-ghost btn-sm" id="btn-docx" onclick="descargarDOCX()" style="display:none;">📝 Descargar Word</button>
         </div>
       </div>
@@ -1964,6 +1969,7 @@ Las figuras estadísticas (gráficas) serán añadidas por la aplicación fuera 
             .join("");
 
         document.getElementById("btn-pdf").style.display = "inline-flex";
+        document.getElementById("btn-pdf-real").style.display = "inline-flex";
         document.getElementById("btn-docx").style.display = "inline-flex";
 
     } catch (e) {
@@ -1984,247 +1990,87 @@ Las figuras estadísticas (gráficas) serán añadidas por la aplicación fuera 
 /* ============================
    GRAFICAS DEL ANEXO ESTADISTICO — VERSION PRO
    ============================ */
-async function generarGraficasEstadisticas() {
+async function descargarPDF_REAL() {
 
-    // ====== 1. DATOS SOCIOMÉTRICOS ======
-    const topAcept = calcularTopAceptacion();
-    const topRech = calcularTopRechazo();
-    const categorias = contarCategorias();
-    const perfil = calcularPerfilGlobal();
-
-    // ====== CONFIG COMÚN PARA TODO ======
-    Chart.defaults.font.size = 18;   // Tamaño global de letra
-    Chart.defaults.color = '#000';   // Color de texto
-    Chart.defaults.plugins.legend.labels.font.size = 18;
-
-    // ====== 2. BARRAS TOP ACEPTACIÓN ======
-    const c1 = document.getElementById('chart-top-acept').getContext('2d');
-    new Chart(c1,{
-        type:'bar',
-        data:{
-            labels: topAcept.map(x=>x.cod),
-            datasets:[{
-                data: topAcept.map(x=>x.posRec),
-                backgroundColor:'rgba(63,185,80,0.7)',
-                borderColor:'#3fb950',
-                borderWidth:2
-            }]
-        },
-        options:{
-            indexAxis:'y',
-            responsive:false,
-            animation:false,
-            plugins:{
-                legend:{ display:false },
-                tooltip:{
-                    titleFont:{ size:18 },
-                    bodyFont:{ size:16 }
-                }
-            },
-            scales:{
-                x:{ ticks:{ font:{ size:18 }, color:'#000' } },
-                y:{ ticks:{ font:{ size:18 }, color:'#000' } }
-            }
-        }
-    });
-
-    // ====== 3. BARRAS TOP RECHAZO ======
-    const c2 = document.getElementById('chart-top-rech').getContext('2d');
-    new Chart(c2,{
-        type:'bar',
-        data:{
-            labels: topRech.map(x=>x.cod),
-            datasets:[{
-                data: topRech.map(x=>x.negRec),
-                backgroundColor:'rgba(248,81,73,0.7)',
-                borderColor:'#f85149',
-                borderWidth:2
-            }]
-        },
-        options:{
-            indexAxis:'y',
-            responsive:false,
-            animation:false,
-            plugins:{
-                legend:{ display:false },
-                tooltip:{
-                    titleFont:{ size:18 },
-                    bodyFont:{ size:16 }
-                }
-            },
-            scales:{
-                x:{ ticks:{ font:{ size:18 }, color:'#000' } },
-                y:{ ticks:{ font:{ size:18 }, color:'#000' } }
-            }
-        }
-    });
-
-    // ====== 4. DONUT CATEGORÍAS ======
-    const c3 = document.getElementById('chart-categorias').getContext('2d');
-    new Chart(c3,{
-        type:'doughnut',
-        data:{
-            labels: Object.keys(categorias),
-            datasets:[{
-                data:Object.values(categorias),
-                backgroundColor:[
-                    '#3fb950','#58a6ff','#bc8cff','#d29922','#f85149','#7d8590'
-                ],
-                borderWidth:2
-            }]
-        },
-        options:{
-            responsive:false,
-            animation:false,
-            plugins:{
-                legend:{
-                    position:'right',
-                    labels:{
-                        font:{ size:18 },
-                        color:'#000',
-                        boxWidth:20
-                    }
-                },
-                tooltip:{
-                    titleFont:{ size:18 },
-                    bodyFont:{ size:16 }
-                }
-            }
-        }
-    });
-
-    // ====== 5. RADAR PERFIL GLOBAL ======
-    const c4 = document.getElementById('chart-radar').getContext('2d');
-    new Chart(c4,{
-        type:'radar',
-        data:{
-            labels:['Aceptación TL+','Rechazo TL−','TG+','TG−','Reciprocidad','Densidad'],
-            datasets:[{
-                label:'Perfil sociométrico',
-                data:[
-                    perfil.tl_pos,
-                    perfil.tl_neg,
-                    perfil.tg_pos,
-                    perfil.tg_neg,
-                    perfil.recip,
-                    perfil.densidad
-                ],
-                backgroundColor:'rgba(88,166,255,0.3)',
-                borderColor:'#58a6ff',
-                borderWidth:3,
-                pointRadius:4,
-                pointBorderWidth:2
-            }]
-        },
-        options:{
-            responsive:false,
-            animation:false,
-            plugins:{
-                legend:{
-                    labels:{ font:{ size:18 }, color:'#000' }
-                },
-                tooltip:{
-                    titleFont:{ size:18 },
-                    bodyFont:{ size:16 }
-                }
-            },
-            scales:{
-                r:{
-                    pointLabels:{ 
-                        font:{ size:18 }, 
-                        color:'#000' 
-                    },
-                    ticks:{
-                        font:{ size:14 },
-                        backdropColor:'rgba(255,255,255,0.7)',
-                        color:'#000'
-                    },
-                    grid:{ lineWidth:2 },
-                    angleLines:{ lineWidth:2 }
-                }
-            }
-        }
-    });
-
-    // ====== 6. ESPERAR QUE CHART.JS PINTE ======
-    await new Promise(r=>setTimeout(r,900));
-
-    // ====== 7. DEVOLVER PNGS PARA INSERTAR EN EL PDF ======
-    return {
-        acept: document.getElementById('chart-top-acept').toDataURL('image/png'),
-        rech:  document.getElementById('chart-top-rech').toDataURL('image/png'),
-        cat:   document.getElementById('chart-categorias').toDataURL('image/png'),
-        radar: document.getElementById('chart-radar').toDataURL('image/png')
-    };
-}
-/* === FIN GRAFICAS PRO === */
-
-   async function descargarPDF() {
     if (!informeTexto) return;
-    const charts = await generarGraficasEstadisticas();   // 
-    const fecha = new Date().toLocaleDateString('es-ES');
-    const sid = sesion?.id || '';
 
-    const html = `
-<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<style>
-@page{size:A4;margin:20mm;}
-body{font-family:Arial;font-size:11pt;color:#222;}
-h1{color:#1A3A5C;border-bottom:3px solid #1A3A5C;padding-bottom:4px;}
-h2{color:#1A3A5C;margin-top:22px;border-bottom:1px solid #999;}
-img{max-width:600px;}
-.page-break{page-break-before:always;}
-</style>
-</head>
-<body>
+    // 1. Obtener las imágenes estadísticas
+    const charts = await generarGraficasEstadisticas();
 
-<h1>Informe Sociométrico</h1>
-<div>Sesión: ${sid} · Fecha: ${fecha} · Alumnado: ${sesion.codigos.length}</div>
+    // 2. Crear PDF vacío
+    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    const pdf = await PDFDocument.create();
 
-${informeTexto.split("\n").map(x=>`<p>${x}</p>`).join("")}
+    const page = pdf.addPage([595, 842]); // A4 vertical
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
 
-<div class="page-break"></div>
+    let y = 800;
 
+    // ==== TÍTULO ====
+    page.drawText('Informe Sociométrico', {
+        x: 50,
+        y,
+        size: 22,
+        font,
+        color: rgb(0.1, 0.25, 0.36),
+    });
+    y -= 40;
 
-<h1>Anexo Estadístico</h1>
+    // ==== METADATOS ====
+    const fecha = new Date().toLocaleDateString("es-ES");
+    page.drawText(`Sesión: ${sesion.id} · Fecha: ${fecha}`, {
+        x: 50,
+        y,
+        size: 11
+    });
+    y -= 30;
 
-<h2>Top 5 Aceptación</h2>
-<img src="${charts.acept}" style="max-width:420px; display:block; margin:20px auto;">
+    // ==== TEXTO DEL INFORME ====
+    const lines = informeTexto.split("\n");
+    lines.forEach(line => {
+        if (y < 60) {
+            page = pdf.addPage([595,842]);
+            y = 800;
+        }
+        page.drawText(line.trim(), { x: 50, y, size: 10, font });
+        y -= 16;
+    });
 
-<h2>Top 5 Rechazo</h2>
-<img src="${charts.rech}" style="max-width:420px; display:block; margin:20px auto;">
+    // ==== NUEVA PÁGINA PARA GRÁFICOS ====
+    const page2 = pdf.addPage([595, 842]);
+    let y2 = 780;
 
-<h2>Distribución de Categorías</h2>
-<img src="${charts.cat}" style="max-width:420px; display:block; margin:20px auto;">
+    // Función para insertar imágenes PNG
+    async function insertarPNG(base64, ancho) {
+        const png = await pdf.embedPng(base64);
+        const escala = ancho / png.width;
+        const alto = png.height * escala;
 
-<h2>Perfil Sociométrico Global</h2>
-<img src="${charts.radar}" style="max-width:420px; display:block; margin:20px auto;">
+        page2.drawImage(png, {
+            x: 50,
+            y: y2 - alto,
+            width: ancho,
+            height: alto,
+        });
 
+        y2 -= alto + 30;
+    }
 
-</body></html>`;
+    await insertarPNG(charts.acept, 450);
+    await insertarPNG(charts.rech, 450);
+    await insertarPNG(charts.cat, 450);
+    await insertarPNG(charts.radar, 450);
 
-  // Crear iframe oculto para impresión
-const iframe = document.createElement('iframe');
-iframe.style.position = 'fixed';
-iframe.style.right = '0';
-iframe.style.bottom = '0';
-iframe.style.width = '0';
-iframe.style.height = '0';
-iframe.style.border = '0';
-document.body.appendChild(iframe);
+    // Guardar PDF
+    const bytes = await pdf.save();
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const enlace = document.createElement("a");
 
-// Insertar el HTML dentro del iframe
-iframe.contentWindow.document.open();
-iframe.contentWindow.document.write(html);
-iframe.contentWindow.document.close();
+    enlace.href = URL.createObjectURL(blob);
+    enlace.download = `Informe_sociometrico_${sesion.id}.pdf`;
+    enlace.click();
 
-// Esperar a que cargue TODO y después imprimir
-setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    document.body.removeChild(iframe);
-}, 800); 
+    showToast("PDF descargado correctamente");
 }
 
 //// ============================================================
@@ -3459,15 +3305,5 @@ window.addEventListener('resize', () => {
     <!-- tu informe-output -->
     <!-- todo tu contenido -->
 
-    <!-- === CANVAS PARA GRAFICAS DEL ANEXO === -->
-    <div id="charts-hidden" style="visibility:hidden; position:absolute; left:-9999px; top:-9999px; width:0; height:0; overflow:hidden;">
-        <canvas id="chart-top-acept" width="600" height="300"></canvas>
-        <canvas id="chart-top-rech" width="600" height="300"></canvas>
-        <canvas id="chart-categorias" width="600" height="300"></canvas>
-        <canvas id="chart-radar" width="600" height="300"></canvas>
-    </div>
-
-</body>
-</html>
 </body>
 </html>
