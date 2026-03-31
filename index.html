@@ -1938,6 +1938,184 @@ async function renderGraficasAnexo() {
 }
 
 async function generarGraficasEstadisticas() {
+//--------------------------------------------------------------------
+// GRÁFICAS REALES PARA EL PDF (Chart.js)
+//--------------------------------------------------------------------
+
+// Destruir instancias antiguas si existen
+let pdfCharts = {};
+
+function destroyPdfChart(id) {
+    if (pdfCharts[id]) {
+        pdfCharts[id].destroy();
+        delete pdfCharts[id];
+    }
+}
+
+async function renderGraficasAnexo() {
+    // Obtener métricas básicas
+    const codigos = sesion.codigos;
+    const n = codigos.length;
+
+    const { posRec, negRec, posEm, negEm } = calcTotales();
+    const netos = codigos.map((_, i) => posRec[i] - negRec[i]);
+
+    // TOP ACEPTACIÓN
+    const topAcept = [...codigos.map((cod, i) => ({
+        cod, val: posRec[i]
+    }))].sort((a,b)=>b.val-a.val).slice(0,5);
+
+    // TOP RECHAZO
+    const topRech = [...codigos.map((cod, i) => ({
+        cod, val: negRec[i]
+    }))].sort((a,b)=>b.val-a.val).slice(0,5);
+
+    // CATEGORÍAS
+    const cats = contarCategorias();
+    const catLabels = Object.keys(cats);
+    const catValues = Object.values(cats);
+
+    // PERFIL GLOBAL
+    const perfil = calcularPerfilGlobal();
+
+
+    //----------------------------------------------------------------
+    // GRÁFICA 1 — TOP ACEPTACIÓN (barras)
+    //----------------------------------------------------------------
+    destroyPdfChart("chart-top-acept");
+    pdfCharts["chart-top-acept"] = new Chart(
+        document.getElementById("chart-top-acept").getContext("2d"),
+        {
+            type: "bar",
+            data: {
+                labels: topAcept.map(x => x.cod),
+                datasets: [{
+                    label: "Positivas recibidas",
+                    data: topAcept.map(x => x.val),
+                    backgroundColor: "#3fb950",
+                    borderColor: "#29a341",
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: "#fff" }},
+                    y: { beginAtZero: true, ticks: { color: "#fff" }}
+                }
+            }
+        }
+    );
+
+    //----------------------------------------------------------------
+    // GRÁFICA 2 — TOP RECHAZO (barras)
+    //----------------------------------------------------------------
+    destroyPdfChart("chart-top-rech");
+    pdfCharts["chart-top-rech"] = new Chart(
+        document.getElementById("chart-top-rech").getContext("2d"),
+        {
+            type: "bar",
+            data: {
+                labels: topRech.map(x => x.cod),
+                datasets: [{
+                    label: "Negativas recibidas",
+                    data: topRech.map(x => x.val),
+                    backgroundColor: "#f85149",
+                    borderColor: "#d13c36",
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: "#fff" }},
+                    y: { beginAtZero: true, ticks: { color: "#fff" }}
+                }
+            }
+        }
+    );
+
+    //----------------------------------------------------------------
+    // GRÁFICA 3 — CATEGORÍAS SOCIOMÉTRICAS (pie chart)
+    //----------------------------------------------------------------
+    destroyPdfChart("chart-categorias");
+    pdfCharts["chart-categorias"] = new Chart(
+        document.getElementById("chart-categorias").getContext("2d"),
+        {
+            type: "pie",
+            data: {
+                labels: catLabels,
+                datasets: [{
+                    data: catValues,
+                    backgroundColor: [
+                        "#3fb950",
+                        "#f85149",
+                        "#7d8590",
+                        "#d29922",
+                        "#58a6ff",
+                        "#bc8cff"
+                    ]
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { labels: { color: "#fff" }}}
+            }
+        }
+    );
+
+    //----------------------------------------------------------------
+    // GRÁFICA 4 — PERFIL GLOBAL (radar)
+    //----------------------------------------------------------------
+    destroyPdfChart("chart-radar");
+    pdfCharts["chart-radar"] = new Chart(
+        document.getElementById("chart-radar").getContext("2d"),
+        {
+            type: "radar",
+            data: {
+                labels: [
+                    "TL positivos",
+                    "TL negativos",
+                    "TG positivos",
+                    "TG negativos",
+                    "Recíprocas",
+                    "Densidad (%)"
+                ],
+                datasets: [{
+                    label: "Perfil grupal",
+                    data: [
+                        perfil.tl_pos,
+                        perfil.tl_neg,
+                        perfil.tg_pos,
+                        perfil.tg_neg,
+                        perfil.recip,
+                        perfil.densidad
+                    ],
+                    backgroundColor: "rgba(88,166,255,0.2)",
+                    borderColor: "#58a6ff",
+                    borderWidth: 2,
+                    pointBackgroundColor: "#58a6ff"
+                }]
+            },
+            options: {
+                responsive: false,
+                scales: {
+                    r: {
+                        grid: { color: "rgba(255,255,255,0.2)" },
+                        pointLabels: { color: "#fff" },
+                        ticks: { color: "#fff" }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: "#fff" }}
+                }
+            }
+        }
+    );
+}
+``
 
   // Renderizar realmente las gráficas
   await renderGraficasAnexo();
@@ -1954,128 +2132,132 @@ async function generarGraficasEstadisticas() {
 /* ------------------------------------------------------------
    2. CREAR PDF PROFESIONAL CON PDF-LIB
    ------------------------------------------------------------ */
+//----------------------------------------------
+// FUNCIÓN PARA ESCRIBIR PÁRRAFOS CON SALTO
+//----------------------------------------------
+function drawParagraph(page, text, x, y, font, size, maxWidth, lineHeight) {
+    const words = text.split(" ");
+    let line = "";
+
+    for (let w = 0; w < words.length; w++) {
+        const testLine = line + words[w] + " ";
+        const width = font.widthOfTextAtSize(testLine, size);
+
+        if (width > maxWidth) {
+            page.drawText(line, { x, y, size, font });
+            line = words[w] + " ";
+            y -= lineHeight;
+
+            if (y < 60) {
+                page = page.doc.addPage([595, 842]);
+                y = 800;
+            }
+        } else {
+            line = testLine;
+        }
+    }
+
+    page.drawText(line, { x, y, size, font });
+    return { page, y };
+}
+
+//-------------------------------------------------
+// FUNCIÓN PRINCIPAL PARA CREAR EL PDF REAL
+//-------------------------------------------------
 async function descargarPDF_REAL() {
 
-  // Aseguramos que PDF-Lib está cargado
-  if (typeof PDFLib === "undefined") {
-    alert("Error: PDFLib no está cargado.");
-    return;
-  }
-
-  const { PDFDocument, StandardFonts, rgb } = PDFLib;
-
-  // 1. Obtener imágenes del anexo
-  const charts = await generarGraficasEstadisticas();
-
-  // 2. Crear PDF
-  const pdf = await PDFDocument.create();
-  let page = pdf.addPage([595, 842]);   // A4
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-
-  let y = 800;
-function drawParagraph(page, text, x, y, font, size, maxWidth, lineHeight) {
-  const words = text.split(" ");
-  let line = "";
-
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + words[n] + " ";
-    const w = font.widthOfTextAtSize(testLine, size);
-
-    if (w > maxWidth) {
-      page.drawText(line, { x, y, size, font });
-      line = words[n] + " ";
-      y -= lineHeight;
-
-      if (y < 60) {
-        page = page.doc.addPage([595,842]);
-        y = 800;
-      }
-    } else {
-      line = testLine;
+    if (!informeTexto) {
+        showToast("Primero genera el informe.");
+        return;
     }
-  }
 
-  page.drawText(line, { x, y, size, font });
-  return y;
-}
-  if (!informeTexto) {
-    showToast("Primero genera el informe.");
-    return;
-  }
+    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    const charts = await generarGraficasEstadisticas();
 
-  // Aseguramos que PDF-Lib está cargado
-  if (typeof PDFLib === "undefined") {
-    alert("Error: PDFLib no está cargado.");
-    return;
-  }
-  /* ------------------------------------------------------------
-     CABECERA DEL INFORME
-     ------------------------------------------------------------ */
-  page.drawText('Informe Sociométrico', {
-    x: 50,
-    y,
-    size: 22,
-    font,
-    color: rgb(0.1, 0.25, 0.36)
-  });
+    const pdf = await PDFDocument.create();
+    let page = pdf.addPage([595, 842]);
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
 
-  y -= 40;
+    let y = 800;
 
-  const fecha = new Date().toLocaleDateString("es-ES");
-
-  page.drawText(`Sesión: ${sesion.id} · Fecha: ${fecha}`, {
-    x: 50,
-    y,
-    size: 11,
-    font
-  });
-
-  y -= 30;
-
-  /* ------------------------------------------------------------
-     NUEVA PÁGINA PARA GRÁFICAS
-     ------------------------------------------------------------ */
-  let page2 = pdf.addPage([595, 842]);
-  let y2 = 780;
-
-  async function insertarPNG(base64, ancho) {
-    const png = await pdf.embedPng(base64);
-    const escala = ancho / png.width;
-    const alto = png.height * escala;
-
-    page2.drawImage(png, {
-      x: 50,
-      y: y2 - alto,
-      width: ancho,
-      height: alto
+    //----------------------------------------------
+    // CABECERA
+    //----------------------------------------------
+    page.drawText("Informe Sociométrico", {
+        x: 50,
+        y,
+        size: 22,
+        font,
+        color: rgb(0.1, 0.25, 0.36)
     });
 
-    y2 -= alto + 30;
-  }
+    y -= 40;
 
-  // Insertar todas las gráficas
-  await insertarPNG(charts.acept, 450);
-  await insertarPNG(charts.rech, 450);
-  await insertarPNG(charts.cat, 450);
-  await insertarPNG(charts.radar, 450);
+    const fecha = new Date().toLocaleDateString("es-ES");
 
-  /* ------------------------------------------------------------
-     DESCARGAR PDF
-     ------------------------------------------------------------ */
-  const bytes = await pdf.save();
-  const blob = new Blob([bytes], { type: "application/pdf" });
+    page.drawText(`Sesión: ${sesion.id} · Fecha: ${fecha}`, {
+        x: 50,
+        y,
+        size: 11,
+        font
+    });
 
-  const enlace = document.createElement("a");
-  enlace.href = URL.createObjectURL(blob);
-  enlace.download = `Informe_sociometrico_${sesion.id}.pdf`;
-  enlace.click();
+    y -= 30;
 
-  showToast("PDF REAL generado correctamente");
+    //----------------------------------------------
+    // TEXTO DEL INFORME (párrafos completos)
+    //----------------------------------------------
+    const paragraphs = informeTexto.split("\n");
+
+    for (const p of paragraphs) {
+        let result = drawParagraph(page, p.trim(), 50, y, font, 11, 480, 18);
+        page = result.page;
+        y = result.y - 10;
+
+        if (y < 80) {
+            page = pdf.addPage([595, 842]);
+            y = 800;
+        }
+    }
+
+    //----------------------------------------------
+    // NUEVA PÁGINA PARA LAS GRÁFICAS
+    //----------------------------------------------
+    let page2 = pdf.addPage([595, 842]);
+    let y2 = 780;
+
+    async function addPNG(base64, width) {
+        const png = await pdf.embedPng(base64);
+        const scale = width / png.width;
+        const height = png.height * scale;
+
+        page2.drawImage(png, {
+            x: 50,
+            y: y2 - height,
+            width,
+            height
+        });
+
+        y2 -= height + 30;
+    }
+
+    await addPNG(charts.acept, 480);
+    await addPNG(charts.rech, 480);
+    await addPNG(charts.cat, 480);
+    await addPNG(charts.radar, 480);
+
+    //----------------------------------------------
+    // DESCARGA
+    //----------------------------------------------
+    const bytes = await pdf.save();
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `Informe_sociometrico_${sesion.id}.pdf`;
+    a.click();
+
+    showToast("PDF REAL generado correctamente");
 }
-
-//// ============================================================
-//// === FIN NUEVA FUNCIÓN descargarPDF =========================
-//// ============================================================
 
  
 function descargarDOCX() {
