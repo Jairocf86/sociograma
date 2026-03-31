@@ -897,7 +897,7 @@ textarea { resize: vertical; min-height: 60px; }
       </div>
       <div id="informe-output" style="display:none;"></div>
     <!-- Contenedor oculto para generar las gráficas del anexo -->
-<div id="charts-hidden" style="visibility:hidden; position:absolute; left:-9999px; top:-9999px;">
+<div id="charts-hidden" style="position:fixed; opacity:0; pointer-events:none; left:0; top:0; z-index:-1;">
     <canvas id="chart-top-acept" width="600" height="300"></canvas>
     <canvas id="chart-top-rech" width="600" height="300"></canvas>
     <canvas id="chart-categorias" width="600" height="300"></canvas>
@@ -1931,8 +1931,9 @@ async function renderGraficasAnexo() {
       const ctx4 = document.getElementById("chart-radar").getContext("2d");
       ctx4.fillStyle = "#d29922";
       ctx4.fillRect(0, 0, 600, 300);
+// Esperar un poco para que Chart.js termine
 
-      resolve();
+      setTimeout(() => resolve(), 200);
     }, 200);
   });
 }
@@ -1983,6 +1984,9 @@ async function renderGraficasAnexo() {
     // GRÁFICA 1 — TOP ACEPTACIÓN (barras)
     //----------------------------------------------------------------
     destroyPdfChart("chart-top-acept");
+const canvas1 = document.getElementById("chart-top-acept");
+canvas1.width = 600;
+canvas1.height = 300;
     pdfCharts["chart-top-acept"] = new Chart(
         document.getElementById("chart-top-acept").getContext("2d"),
         {
@@ -2012,6 +2016,9 @@ async function renderGraficasAnexo() {
     // GRÁFICA 2 — TOP RECHAZO (barras)
     //----------------------------------------------------------------
     destroyPdfChart("chart-top-rech");
+const canvas2 = document.getElementById("chart-top-rech");
+canvas2.width = 600;
+canvas2.height = 300;
     pdfCharts["chart-top-rech"] = new Chart(
         document.getElementById("chart-top-rech").getContext("2d"),
         {
@@ -2041,6 +2048,9 @@ async function renderGraficasAnexo() {
     // GRÁFICA 3 — CATEGORÍAS SOCIOMÉTRICAS (pie chart)
     //----------------------------------------------------------------
     destroyPdfChart("chart-categorias");
+const canvas3 = document.getElementById("chart-categorias");
+canvas3.width = 600;
+canvas3.height = 300;
     pdfCharts["chart-categorias"] = new Chart(
         document.getElementById("chart-categorias").getContext("2d"),
         {
@@ -2070,6 +2080,9 @@ async function renderGraficasAnexo() {
     // GRÁFICA 4 — PERFIL GLOBAL (radar)
     //----------------------------------------------------------------
     destroyPdfChart("chart-radar");
+const canvas4 = document.getElementById("chart-radar");
+canvas4.width = 600;
+canvas4.height = 300;
     pdfCharts["chart-radar"] = new Chart(
         document.getElementById("chart-radar").getContext("2d"),
         {
@@ -3485,7 +3498,7 @@ window.addEventListener('resize', () => {
 </script>
 
 <!-- Contenedor oculto para generar las gráficas del anexo -->
-<div id="charts-hidden" style="visibility:hidden; position:absolute; left:-9999px; top:-9999px;">
+<div id="charts-hidden" style="position:fixed; opacity:0; pointer-events:none; left:0; top:0; z-index:-1;">
     <canvas id="chart-top-acept" width="600" height="300"></canvas>
     <canvas id="chart-top-rech" width="600" height="300"></canvas>
     <canvas id="chart-categorias" width="600" height="300"></canvas>
