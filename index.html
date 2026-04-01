@@ -22628,6 +22628,29 @@ async function descargarDOCX() {
       }
     }
 
+    // ── Fallback: insertar tablas intermedias si la IA no generó los títulos esperados
+    if (!tablaIndicadoresInsertada) {
+      console.warn('[DOCX] Tabla 2.1 no detectada en texto, insertando fallback');
+      children.push(heading('2.1. Indicadores globales', 2));
+      children.push(spacer());
+      children.push(makeTablaIndicadores());
+      children.push(spacer());
+    }
+    if (!tablaLiderazgoInsertada) {
+      console.warn('[DOCX] Tabla 2.2 no detectada en texto, insertando fallback');
+      children.push(heading('2.2. Liderazgo social', 2));
+      children.push(spacer());
+      children.push(makeTablaLiderazgo());
+      children.push(spacer());
+    }
+    if (!tablaRechazadosInsertada) {
+      console.warn('[DOCX] Tabla 2.4 no detectada en texto, insertando fallback');
+      children.push(heading('2.4. Perfiles con dificultades de integración', 2));
+      children.push(spacer());
+      const tbl = makeTablaRechazados();
+      if (tbl) { children.push(tbl); children.push(spacer()); }
+    }
+
     children.push(new Paragraph({ children:[new PageBreak()] }));
 
     // ── 3. TABLA RESUMEN DE DATOS SOCIOMÉTRICOS ──────────────
