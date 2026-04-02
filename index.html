@@ -22494,6 +22494,47 @@ async function descargarDOCX() {
       return new Table({ width:{size:tot,type:WidthType.DXA}, columnWidths:colW, rows });
     }
 
+    function makeTablaSubgrupos() {
+      const sgColW = [1400, 4000, 900, 1400];
+      const sgTotal = sgColW.reduce((s,v)=>s+v,0);
+      const sgRowsLocal = [
+        new TableRow({ children:[
+          hdrCell('Subgrupo',      sgColW[0]),
+          hdrCell('Miembros',      sgColW[1]),
+          hdrCell('Nº',            sgColW[2]),
+          hdrCell('Observaciones', sgColW[3]),
+        ], tableHeader:true })
+      ];
+      sgData.forEach((sg, ri) => {
+        const bg = ri%2===0 ? 'F9FBFD' : WHITE;
+        const obs = sg.cohLabel === 'Alta' ? 'Cohesión fuerte entre sus miembros.' :
+                    sg.cohLabel === 'Media' ? 'Cohesión media. Red estable.' : 'Cohesión baja. Vínculos débiles.';
+        sgRowsLocal.push(new TableRow({ children:[
+          new TableCell({ width:{size:sgColW[0],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({children:[new TextRun({text:`Subgrupo ${sg.idx}`,bold:true,size:18,font:'Calibri'})]})] }),
+          new TableCell({ width:{size:sgColW[1],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({children:[new TextRun({text:sg.members.join(', '),size:18,font:'Calibri'})]})] }),
+          new TableCell({ width:{size:sgColW[2],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({alignment:AlignmentType.CENTER, children:[new TextRun({text:String(sg.n),size:18,font:'Calibri'})]})] }),
+          new TableCell({ width:{size:sgColW[3],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({children:[new TextRun({text:obs,size:18,font:'Calibri'})]})] }),
+        ]}));
+      });
+      if (aislados.length) {
+        sgRowsLocal.push(new TableRow({ children:[
+          new TableCell({ width:{size:sgColW[0],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({children:[new TextRun({text:'Sin subgrupo',italics:true,size:18,font:'Calibri'})]})] }),
+          new TableCell({ width:{size:sgColW[1],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({children:[new TextRun({text:aislados.map(g=>codigos[g[0]]).join(', '),size:18,font:'Calibri'})]})] }),
+          new TableCell({ width:{size:sgColW[2],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({alignment:AlignmentType.CENTER, children:[new TextRun({text:String(aislados.length),size:18,font:'Calibri'})]})] }),
+          new TableCell({ width:{size:sgColW[3],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
+            children:[new Paragraph({children:[new TextRun({text:'No presentan elecciones mutuas consolidadas.',size:18,font:'Calibri'})]})] }),
+        ]}));
+      }
+      return new Table({ width:{size:sgTotal,type:WidthType.DXA}, columnWidths:sgColW, rows:sgRowsLocal });
+    }
+
     function makeTablaRechazados() {
       const rechazados = codigos.map((_,i)=>i).filter(i=>netos[i]<0).sort((a,b)=>netos[a]-netos[b]);
       // También añadir perfil de aislamiento (pocas positivas y negativas)
@@ -22530,6 +22571,7 @@ async function descargarDOCX() {
     // Variables para controlar qué tablas ya se han insertado
     let tablaIndicadoresInsertada = false;
     let tablaLiderazgoInsertada = false;
+    let tablaSubgruposInsertada = false;
     let tablaRechazadosInsertada = false;
 
     // Inyecta la tabla correspondiente según el título de sección detectado
@@ -22543,6 +22585,11 @@ async function descargarDOCX() {
         tablaLiderazgoInsertada = true;
         children.push(spacer());
         children.push(makeTablaLiderazgo());
+        children.push(spacer());
+      } else if (/2[\.º°\s]?3[\s\.]/.test(clean) && !tablaSubgruposInsertada) {
+        tablaSubgruposInsertada = true;
+        children.push(spacer());
+        children.push(makeTablaSubgrupos());
         children.push(spacer());
       } else if (/2[\.º°\s]?4[\s\.]/.test(clean) && !tablaRechazadosInsertada) {
         tablaRechazadosInsertada = true;
@@ -22628,27 +22675,24 @@ async function descargarDOCX() {
       }
     }
 
-    // ── Fallback: insertar tablas intermedias si la IA no generó los títulos esperados
+    // ── Fallback: insertar tablas si el texto de la IA no generó los títulos esperados
     if (!tablaIndicadoresInsertada) {
-      console.warn('[DOCX] Tabla 2.1 no detectada en texto, insertando fallback');
       children.push(heading('2.1. Indicadores globales', 2));
-      children.push(spacer());
-      children.push(makeTablaIndicadores());
-      children.push(spacer());
+      children.push(spacer()); children.push(makeTablaIndicadores()); children.push(spacer());
     }
     if (!tablaLiderazgoInsertada) {
-      console.warn('[DOCX] Tabla 2.2 no detectada en texto, insertando fallback');
       children.push(heading('2.2. Liderazgo social', 2));
-      children.push(spacer());
-      children.push(makeTablaLiderazgo());
-      children.push(spacer());
+      children.push(spacer()); children.push(makeTablaLiderazgo()); children.push(spacer());
+    }
+    if (!tablaSubgruposInsertada) {
+      children.push(heading('2.3. Subgrupos identificados', 2));
+      children.push(spacer()); children.push(makeTablaSubgrupos()); children.push(spacer());
     }
     if (!tablaRechazadosInsertada) {
-      console.warn('[DOCX] Tabla 2.4 no detectada en texto, insertando fallback');
       children.push(heading('2.4. Perfiles con dificultades de integración', 2));
       children.push(spacer());
-      const tbl = makeTablaRechazados();
-      if (tbl) { children.push(tbl); children.push(spacer()); }
+      const tblR = makeTablaRechazados();
+      if (tblR) { children.push(tblR); children.push(spacer()); }
     }
 
     children.push(new Paragraph({ children:[new PageBreak()] }));
@@ -22698,51 +22742,8 @@ async function descargarDOCX() {
     children.push(p('Las filas marcadas en rojo corresponden a los alumnos con índice neto negativo. El resto de la tabla presenta una distribución mayoritariamente positiva.', {italic:true, size:18}));
     children.push(spacer());
 
-    // ── TABLA DE SUBGRUPOS ─────────────────────────────
-    const sgColW = [1400, 4000, 900, 1400];
-    const sgTotal = sgColW.reduce((s,v)=>s+v,0);
-    const sgRows = [
-      new TableRow({ children:[
-        hdrCell('Subgrupo',      sgColW[0]),
-        hdrCell('Miembros',      sgColW[1]),
-        hdrCell('Nº',            sgColW[2]),
-        hdrCell('Observaciones', sgColW[3]),
-      ], tableHeader:true })
-    ];
 
-    sgData.forEach((sg, ri) => {
-      const bg = ri%2===0 ? 'F9FBFD' : WHITE;
-      const obs = sg.cohLabel === 'Alta' ? 'Cohesión fuerte entre sus miembros.' :
-                  sg.cohLabel === 'Media' ? 'Cohesión media. Red estable.' : 'Cohesión baja. Vínculos débiles.';
-      sgRows.push(new TableRow({ children:[
-        new TableCell({ width:{size:sgColW[0],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({children:[new TextRun({text:`Subgrupo ${sg.idx}`,bold:true,size:18,font:'Calibri'})]})] }),
-        new TableCell({ width:{size:sgColW[1],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({children:[new TextRun({text:sg.members.join(', '),size:18,font:'Calibri'})]})] }),
-        new TableCell({ width:{size:sgColW[2],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({alignment:AlignmentType.CENTER, children:[new TextRun({text:String(sg.n),size:18,font:'Calibri'})]})] }),
-        new TableCell({ width:{size:sgColW[3],type:WidthType.DXA}, shading:{fill:bg,type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({children:[new TextRun({text:obs,size:18,font:'Calibri'})]})] }),
-      ]}));
-    });
-
-    if (aislados.length) {
-      sgRows.push(new TableRow({ children:[
-        new TableCell({ width:{size:sgColW[0],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({children:[new TextRun({text:'Sin subgrupo',italics:true,size:18,font:'Calibri'})]})] }),
-        new TableCell({ width:{size:sgColW[1],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({children:[new TextRun({text:aislados.map(g=>codigos[g[0]]).join(', '),size:18,font:'Calibri'})]})] }),
-        new TableCell({ width:{size:sgColW[2],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({alignment:AlignmentType.CENTER, children:[new TextRun({text:String(aislados.length),size:18,font:'Calibri'})]})] }),
-        new TableCell({ width:{size:sgColW[3],type:WidthType.DXA}, shading:{fill:'FFF2CC',type:ShadingType.CLEAR}, borders:allBorders(BorderStyle.SINGLE,4,'BFBFBF'), margins:{top:60,bottom:60,left:100,right:100},
-          children:[new Paragraph({children:[new TextRun({text:'No presentan elecciones mutuas consolidadas.',size:18,font:'Calibri'})]})] }),
-      ]}));
-    }
-
-    children.push(new Table({ width:{size:sgTotal,type:WidthType.DXA}, columnWidths:sgColW, rows:sgRows }));
-    children.push(spacer());
     children.push(new Paragraph({ children:[new PageBreak()] }));
-
     // ── GRÁFICAS ──────────────────────────────────────
     children.push(heading('6. Resultados gráficos', 1));
 
